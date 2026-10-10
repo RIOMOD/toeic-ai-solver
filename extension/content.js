@@ -4065,44 +4065,67 @@
   }
 
   function getCurrentQuestionTitle(solutions = [], questionsData = []) {
-    const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
-    const partMatch = allDocsText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
+    const allDocs = getAllExerciseDocuments();
+    const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
+    const combinedSearchText = `${allTitles} ${allDocsText}`;
+
+    const partMatch = combinedSearchText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
     const part = partMatch ? partMatch[1] : "";
 
-    // 1. Kiểm tra dải số câu trong header (VD: Questions 77 - 79 hoặc Câu 77 đến 79)
-    const rangeMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—\s]|to|through|đến)+\s*(\d{1,3})/i);
+    // Xác định số lượng câu hỏi hiện tại trên màn hình
+    let questionCount = Math.max(solutions.length, questionsData.length);
+    if (questionCount <= 0) {
+      const radioGroups = groupRadioButtons();
+      if (radioGroups.length > 0) questionCount = radioGroups.length;
+    }
+
+    // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, Câu 80 đến 82, 80-82 of 200)
+    const rangeMatch = combinedSearchText.match(/(?:Questions?|Câu)?\s*(\d{1,3})\s*(?:[-–—~～\s]|to|through|đến)+\s*(\d{1,3})(?:\s*of\s*\d+)?/i);
     if (rangeMatch) {
       const q1 = parseInt(rangeMatch[1], 10);
       const q2 = parseInt(rangeMatch[2], 10);
-      if (!isNaN(q1) && !isNaN(q2)) {
+      if (!isNaN(q1) && !isNaN(q2) && q1 >= 1 && q2 <= 200 && q2 >= q1) {
         const qText = (q1 !== q2) ? `Câu ${q1} - ${q2}` : `Câu ${q1}`;
         return part ? `${part} • ${qText}` : qText;
       }
     }
 
     // 2. Tìm các số câu từ từng item lời giải
-    const totalCount = Math.max(solutions.length, questionsData.length);
-    if (totalCount > 0) {
+    if (questionCount > 0) {
       const itemNums = [];
-      for (let i = 0; i < totalCount; i++) {
-        const itemTitle = getQuestionItemTitle(i, solutions[i], totalCount, questionsData);
+      for (let i = 0; i < questionCount; i++) {
+        const itemTitle = getQuestionItemTitle(i, solutions[i], questionCount, questionsData);
         const m = itemTitle.match(/\d+/);
         if (m) itemNums.push(parseInt(m[0], 10));
       }
       if (itemNums.length > 0) {
         const minNum = Math.min(...itemNums);
-        const maxNum = Math.max(...itemNums);
+        let maxNum = Math.max(...itemNums);
+        // Nếu có nhiều hơn 1 câu (VD: 3 câu) nhưng maxNum bị trùng minNum, tự động tính câu kết thúc: minNum + count - 1
+        if (questionCount > 1 && maxNum <= minNum) {
+          maxNum = minNum + questionCount - 1;
+        }
         const qText = (minNum !== maxNum) ? `Câu ${minNum} - ${maxNum}` : `Câu ${minNum}`;
         return part ? `${part} • ${qText}` : qText;
       }
     }
 
-    // 3. Dựa vào dải số câu hoặc câu đơn trên trang (VD: Question 38 of 200)
-    const singleMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})/i);
-    if (singleMatch) {
-      const q1 = singleMatch[1];
-      const qText = `Câu ${q1}`;
-      return part ? `${part} • ${qText}` : qText;
+    // 3. Quét số câu đầu tiên xuất hiện trên trang (VD: Question 80, 80. What...)
+    const firstNumMatch = combinedSearchText.match(/(?:Questions?|Câu)\s*(\d{1,3})/i) ||
+                          combinedSearchText.match(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/);
+    if (firstNumMatch) {
+      const startNum = parseInt(firstNumMatch[1], 10);
+      if (startNum >= 1 && startNum <= 200) {
+        if (questionCount > 1) {
+          const endNum = startNum + questionCount - 1;
+          const qText = `Câu ${startNum} - ${endNum}`;
+          return part ? `${part} • ${qText}` : qText;
+        } else {
+          const qText = `Câu ${startNum}`;
+          return part ? `${part} • ${qText}` : qText;
+        }
+      }
     }
 
     if (part) return part;
@@ -4110,19 +4133,23 @@
   }
 
   function getQuestionItemTitle(index, sol, total, questionsData = []) {
-    const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+    const allDocs = getAllExerciseDocuments();
+    const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
+    const combinedSearchText = `${allTitles} ${allDocsText}`;
 
-    // 1. Dựa vào dải số câu trên trang (VD: Questions 77 - 79 of 200 -> Câu 77 + index)
-    const rangeMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—\s]|to|through|đến)+\s*(\d{1,3})/i);
+    // 1. Dựa vào dải số câu trên trang (VD: Questions 80 - 82 -> Câu 80 + index)
+    const rangeMatch = combinedSearchText.match(/(?:Questions?|Câu)?\s*(\d{1,3})\s*(?:[-–—~～\s]|to|through|đến)+\s*(\d{1,3})/i);
     if (rangeMatch) {
       const startNum = parseInt(rangeMatch[1], 10);
-      if (!isNaN(startNum) && startNum >= 1 && startNum <= 200) {
+      const endNum = parseInt(rangeMatch[2], 10);
+      if (!isNaN(startNum) && startNum >= 1 && startNum <= 200 && (!endNum || endNum >= startNum)) {
         return `Câu ${startNum + index}`;
       }
     }
 
-    // 2. Quét các tiêu đề đánh số xuất hiện trên trang theo thứ tự (VD: 77. ..., 78. ..., 79. ...)
-    const docMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/g))
+    // 2. Quét các tiêu đề đánh số xuất hiện trên trang theo thứ tự (VD: 80. ..., 81. ..., 82. ...)
+    const docMatches = Array.from(combinedSearchText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/g))
       .map(m => parseInt(m[1], 10))
       .filter(n => n >= 1 && n <= 200);
     const distinctDocNums = docMatches.filter((n, idx, arr) => arr.indexOf(n) === idx);
@@ -4138,14 +4165,16 @@
       qNum = questionsData[index].question_number;
     }
 
-    // Nếu các câu trong danh sách bị gán nhầm cùng 1 số câu (lỗi duplicate), tự động tăng theo index
-    if (total > 1 && qNum) {
-      const isDuplicateNum = (
-        questionsData.length > 1 &&
-        questionsData.every(q => q.question_number === qNum)
-      );
-      if (isDuplicateNum) {
-        return `Câu ${qNum + index}`;
+    // Nếu câu đầu tiên có số câu (VD: câu 80), nhưng các câu sau thiếu hoặc bị gán trùng câu 80:
+    const firstNum = (
+      sol?.question_number ||
+      questionsData[0]?.question_number ||
+      distinctDocNums[0] ||
+      qNum
+    );
+    if (total > 1 && firstNum && typeof firstNum === "number") {
+      if (!qNum || qNum === firstNum) {
+        return `Câu ${firstNum + index}`;
       }
     }
 
@@ -4153,7 +4182,7 @@
       return `Câu ${qNum}`;
     }
 
-    // 4. Trích xuất từ question_id (VD: "q_77", "question_78")
+    // 4. Trích xuất từ question_id (VD: "q_80", "question_81")
     const idMatch = String(sol?.question_id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
     if (idMatch) {
       const n = parseInt(idMatch[1], 10);
@@ -4168,6 +4197,11 @@
     if (pMatch) {
       const n = parseInt(pMatch[1], 10);
       if (n >= 1 && n <= 200) return `Câu ${n}`;
+    }
+
+    // 6. Nếu có firstNum bất kỳ từ tài liệu
+    if (distinctDocNums.length > 0 && distinctDocNums[0]) {
+      return `Câu ${distinctDocNums[0] + index}`;
     }
 
     return `Câu ${index + 1}`;
