@@ -386,39 +386,58 @@
   color: #f87171 !important;
 }
 
-/* Floating Mini Bubble (Khi thu nhỏ) */
+#ai-solver-bubble,
+#ai-solver-bubble *,
+#ai-solver-bubble *::before,
+#ai-solver-bubble *::after {
+  box-sizing: border-box !important;
+}
+
+#ai-solver-bubble::before,
+#ai-solver-bubble::after,
+#ai-solver-bubble *::before,
+#ai-solver-bubble *::after {
+  content: none !important;
+}
+
 #ai-solver-bubble {
   position: fixed !important;
   top: 75px;
   right: 20px;
   z-index: 2147483647 !important;
-  width: 44px !important;
-  min-width: 44px !important;
-  max-width: 44px !important;
-  height: 44px !important;
-  min-height: 44px !important;
-  max-height: 44px !important;
+  width: 46px !important;
+  min-width: 46px !important;
+  max-width: 46px !important;
+  height: 46px !important;
+  min-height: 46px !important;
+  max-height: 46px !important;
   padding: 0 !important;
   margin: 0 !important;
   box-sizing: border-box !important;
   border-radius: 50% !important;
   background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%) !important;
-  color: #0f172a !important;
+  color: #ffffff !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   font-size: 20px !important;
   line-height: 1 !important;
   cursor: pointer !important;
-  box-shadow: 0 8px 25px rgba(56, 189, 248, 0.45) !important;
-  border: 2px solid rgba(255, 255, 255, 0.85) !important;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  pointer-events: auto !important;
+  touch-action: none !important;
+  box-shadow: 0 8px 25px rgba(56, 189, 248, 0.5) !important;
+  border: 2.5px solid rgba(255, 255, 255, 0.95) !important;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease !important;
   user-select: none !important;
+}
+
+#ai-solver-bubble svg {
+  pointer-events: none !important;
 }
 
 #ai-solver-bubble:hover {
   transform: scale(1.12);
-  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.7);
+  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.75) !important;
 }
 
 #ai-solver-bubble:active {

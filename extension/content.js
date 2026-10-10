@@ -386,10 +386,10 @@
     }
   }
 
-  // Cài đặt kéo thả (Draggable) linh hoạt cho Toolbar & Bubble
+  // Cài đặt kéo thả (Draggable) và nhấp chuột mượt mà cho Toolbar & Bubble
   function setupDraggable(element) {
+    let isMouseDown = false;
     let isDragging = false;
-    let hasMoved = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
@@ -397,45 +397,45 @@
 
     dragHandle.addEventListener("mousedown", (e) => {
       if (e.target.closest("button") && !element.id.includes("bubble")) return;
-      isDragging = true;
-      hasMoved = false;
+      isMouseDown = true;
+      isDragging = false;
       startX = e.clientX;
       startY = e.clientY;
       const rect = element.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
-      element.style.setProperty("right", "auto", "important");
-      element.style.setProperty("left", `${initialLeft}px`, "important");
-      element.style.setProperty("top", `${initialTop}px`, "important");
-      e.preventDefault();
     });
 
     window.addEventListener("mousemove", (e) => {
-      if (!isDragging) return;
+      if (!isMouseDown) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        hasMoved = true;
+      if (!isDragging && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+        isDragging = true;
+        element.style.setProperty("right", "auto", "important");
       }
-      let newLeft = Math.max(10, Math.min(window.innerWidth - element.offsetWidth - 10, initialLeft + dx));
-      let newTop = Math.max(10, Math.min(window.innerHeight - element.offsetHeight - 10, initialTop + dy));
-      element.style.setProperty("left", `${newLeft}px`, "important");
-      element.style.setProperty("top", `${newTop}px`, "important");
-    });
-
-    window.addEventListener("mouseup", () => {
       if (isDragging) {
-        isDragging = false;
-        setTimeout(() => {
-          hasMoved = false;
-        }, 120);
+        let newLeft = Math.max(10, Math.min(window.innerWidth - element.offsetWidth - 10, initialLeft + dx));
+        let newTop = Math.max(10, Math.min(window.innerHeight - element.offsetHeight - 10, initialTop + dy));
+        element.style.setProperty("left", `${newLeft}px`, "important");
+        element.style.setProperty("top", `${newTop}px`, "important");
       }
     });
 
-    element._hasMoved = () => hasMoved;
+    window.addEventListener("mouseup", (e) => {
+      if (!isMouseDown) return;
+      const wasDragging = isDragging;
+      isMouseDown = false;
+      isDragging = false;
+
+      // Nếu là bubble và người dùng chỉ nhấp chuột (không phải kéo thả) -> Mở rộng thanh công cụ ngay lập tức!
+      if (element.id === "ai-solver-bubble" && !wasDragging) {
+        setToolbarMinimized(false);
+      }
+    });
   }
 
-  // Tạo các thành phần Toolbar (Chỉ tạo một lần và lưu bộ nhớ đệm, tự động tháo/lắp DOM)
+  // Tạo các thành phần Toolbar & Bubble (Sử dụng SVG để chống bị trình dịch thay thế)
   function initToolbarElements() {
     if (window !== window.top) return;
     if (cachedToolbarEl) return cachedToolbarEl;
@@ -443,7 +443,6 @@
     const toolbar = document.createElement("div");
     toolbar.id = "ai-solver-toolbar";
     toolbar.className = "notranslate";
-    toolbar.setAttribute("translate", "no");
     toolbar.style.setProperty("display", "inline-flex", "important");
     toolbar.style.setProperty("flex-direction", "row", "important");
     toolbar.style.setProperty("flex-wrap", "nowrap", "important");
@@ -458,40 +457,48 @@
     toolbar.style.setProperty("box-sizing", "border-box", "important");
     toolbar.style.setProperty("border-radius", "50px", "important");
     toolbar.innerHTML = `
-      <div class="ai-toolbar-drag-handle notranslate" translate="no" id="ai-drag-handle" title="Nhấp giữ chuột để kéo di chuyển thanh AI">
-        <span class="notranslate" translate="no">⋮⋮</span>
+      <div class="ai-toolbar-drag-handle notranslate" id="ai-drag-handle" title="Nhấp giữ chuột để kéo di chuyển thanh AI">
+        <span class="notranslate">⋮⋮</span>
       </div>
-      <button class="ai-toolbar-btn notranslate" translate="no" id="ai-btn-solve" title="Quét & Giải câu này (Phím tắt: Alt + S)">
-        <span class="notranslate" translate="no">⚡</span> <span class="notranslate" translate="no" id="ai-solve-text">Quét & Giải</span>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-solve" title="Quét & Giải câu này (Phím tắt: Alt + S)">
+        <span class="notranslate">⚡</span> <span class="notranslate" id="ai-solve-text">Quét & Giải</span>
       </button>
-      <button class="ai-toolbar-btn notranslate" translate="no" id="ai-btn-autonext" title="Tự động Next câu liên tục (Phím tắt: Alt + A)">
-        <span class="notranslate" translate="no">🔄</span> <span class="notranslate" translate="no" id="ai-autonext-text">Tự Động Next</span>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-autonext" title="Tự động Next câu liên tục (Phím tắt: Alt + A)">
+        <span class="notranslate">🔄</span> <span class="notranslate" id="ai-autonext-text">Tự Động Next</span>
       </button>
-      <button class="ai-toolbar-btn notranslate" translate="no" id="ai-btn-masterauto" title="Tự động chọn bài, giải bài tập và làm sạch cả khóa học (Phím tắt: Alt + M)">
-        <span class="notranslate" translate="no">🚀</span> <span class="notranslate" translate="no" id="ai-masterauto-text">Siêu Auto</span>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-masterauto" title="Tự động chọn bài, giải bài tập và làm sạch cả khóa học (Phím tắt: Alt + M)">
+        <span class="notranslate">🚀</span> <span class="notranslate" id="ai-masterauto-text">Siêu Auto</span>
       </button>
-      <button class="ai-toolbar-btn notranslate" translate="no" id="ai-btn-review" title="Dò lại bài thi xem đã hoàn thành hết các câu chưa">
-        <span class="notranslate" translate="no">🔍</span> <span class="notranslate" translate="no" id="ai-review-text">Dò Lại Bài</span>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-review" title="Dò lại bài thi xem đã hoàn thành hết các câu chưa">
+        <span class="notranslate">🔍</span> <span class="notranslate" id="ai-review-text">Dò Lại Bài</span>
       </button>
-      <button class="ai-toolbar-btn notranslate" translate="no" id="ai-btn-next" title="Chuyển ngay sang câu tiếp theo (Phím tắt: Alt + N)">
-        <span class="notranslate" translate="no">⏭️</span>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-next" title="Chuyển ngay sang câu tiếp theo (Phím tắt: Alt + N)">
+        <span class="notranslate">⏭️</span>
       </button>
-      <div class="ai-toolbar-divider notranslate" translate="no"></div>
-      <button class="ai-toolbar-icon-btn minimize notranslate" translate="no" id="ai-btn-minimize" title="Thu nhỏ toolbar thành bong bóng nổi">
-        <span class="notranslate" translate="no">➖</span>
+      <div class="ai-toolbar-divider notranslate"></div>
+      <button class="ai-toolbar-icon-btn minimize notranslate" id="ai-btn-minimize" title="Thu nhỏ toolbar thành bong bóng nổi">
+        <span class="notranslate">➖</span>
       </button>
-      <button class="ai-toolbar-icon-btn close notranslate" translate="no" id="ai-btn-close" title="Ẩn tạm thời (Phím tắt: Alt + Z hoặc Alt + H)">
-        <span class="notranslate" translate="no">✖</span>
+      <button class="ai-toolbar-icon-btn close notranslate" id="ai-btn-close" title="Ẩn tạm thời (Phím tắt: Alt + Z hoặc Alt + H)">
+        <span class="notranslate">✖</span>
       </button>
     `;
 
-    // Tạo Floating Mini Bubble (hiện khi thu nhỏ)
+    // Tạo Floating Mini Bubble (Sử dụng biểu tượng Robot SVG sắc nét, không bị Google Translate can thiệp)
     const bubble = document.createElement("div");
     bubble.id = "ai-solver-bubble";
     bubble.className = "notranslate";
-    bubble.setAttribute("translate", "no");
     bubble.title = "Bấm để mở bảng điều khiển AI Solver (Phím tắt: Alt + Z hoặc Alt + H)";
-    bubble.innerHTML = `<span class="notranslate" translate="no">🤖</span>`;
+    bubble.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events:none;display:block;">
+        <rect x="3" y="6" width="18" height="13" rx="4" fill="white"/>
+        <circle cx="8.5" cy="12.5" r="1.75" fill="#0284c7"/>
+        <circle cx="15.5" cy="12.5" r="1.75" fill="#0284c7"/>
+        <path d="M10 16H14" stroke="#0284c7" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M12 2V6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="12" cy="2" r="1.5" fill="white"/>
+      </svg>
+    `;
 
     // Gắn sự kiện các nút trên Toolbar
     toolbar.querySelector("#ai-btn-solve").addEventListener("click", () => {
@@ -526,9 +533,9 @@
       toggleToolbarVisibility(false);
     });
 
-    // Click vào bubble để mở lại toolbar (nếu không phải vừa kéo thả)
-    bubble.addEventListener("click", () => {
-      if (bubble._hasMoved && bubble._hasMoved()) return;
+    // Click vào bubble để mở lại toolbar
+    bubble.addEventListener("click", (e) => {
+      e.stopPropagation();
       setToolbarMinimized(false);
     });
 
