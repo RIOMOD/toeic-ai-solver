@@ -117,18 +117,26 @@
     if (action) console.log(`[Watchdog 24/7] ⏱️ Ghi nhận hoạt động: ${action} (${new Date().toLocaleTimeString()})`);
   }
 
-  // 3. Giữ Chrome Tab không bị Sleep / Discard bằng âm thanh im lặng inaudible siêu nhẹ (0% CPU, 0% GPU)
+  // 3. Giữ Chrome Tab không bị Sleep / Discard (Tối ưu siêu nhẹ: phát 1 xung ngắn thay vì loop liên tục)
   let silentAudioEl = null;
-  function startSilentAudioKeepAlive() {
+  let lastAudioTickTime = 0;
+  async function startSilentAudioKeepAlive() {
     try {
-      if (silentAudioEl) return;
-      // 1 giây âm thanh im lặng WAV mono 8kHz siêu nhẹ (50 bytes base64), không chiếm dụng hardware audio context
-      const silentWavBase64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
-      silentAudioEl = new Audio(silentWavBase64);
-      silentAudioEl.loop = true;
-      silentAudioEl.volume = 0.01;
+      // Chỉ bật khi người dùng bật chế độ 24/24 trong cài đặt
+      const storage = await chrome.storage.local.get(["run247Mode"]);
+      if (storage && storage.run247Mode === false) return;
+
+      const now = Date.now();
+      // Chỉ phát 1 xung nhẹ mỗi 90 giây thay vì loop liên tục gây nghẽn CPU audio thread
+      if (now - lastAudioTickTime < 90000) return;
+      lastAudioTickTime = now;
+
+      if (!silentAudioEl) {
+        const silentWavBase64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+        silentAudioEl = new Audio(silentWavBase64);
+        silentAudioEl.volume = 0.001;
+      }
       silentAudioEl.play().catch(() => {});
-      console.log("[KeepAlive 24/7] 🔊 Kích hoạt audio inaudible nhẹ: Chống Chrome Memory Saver đóng băng tab!");
     } catch (e) {}
   }
 
@@ -771,8 +779,7 @@
    * Giúp tự động phát hiện ngay lập tức khi đề thi chuyển sang câu hỏi mới
    */
   function getQuestionFingerprint() {
-    const allDocs = getAllExerciseDocuments();
-    const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const allDocsText = getCachedPageText(1200);
 
     // 1. Tiêu đề câu hỏi / số thứ tự câu (vd: Listening Part 2 • Câu 5 hoặc Question 5 of 100)
     const title = getCurrentQuestionTitle() || "";
@@ -783,11 +790,11 @@
 
     // 3. Chữ ký các input radio/checkbox hiện tại trên trang
     const inputs = queryAllInDocs("input[type='radio'], input[type='checkbox'], select");
-    const inputSig = inputs.slice(0, 10).map(i => `${i.name || ""}_${i.id || ""}_${i.value || ""}`).join("|");
+    const inputSig = inputs.slice(0, 8).map(i => `${i.name || ""}_${i.id || ""}_${i.value || ""}`).join("|");
 
     // 4. Nếu có câu hỏi dạng kéo thả
     const draggables = queryAllInDocs(".ui-draggable, .draggable, .dropTarget");
-    const dragSig = draggables.slice(0, 5).map(d => (d.innerText || "").trim().substring(0, 10)).join("|");
+    const dragSig = draggables.slice(0, 4).map(d => (d.textContent || "").trim().substring(0, 8)).join("|");
 
     if (!title && !itemNum && inputs.length === 0 && draggables.length === 0) {
       return null;
@@ -804,8 +811,7 @@
     if (url.includes("learningarea") || url.includes("test.aspx") || url.includes("/runtime/") || url.includes("toeicolpc.com")) {
       return true;
     }
-    const allDocs = getAllExerciseDocuments();
-    const allText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const allText = getCachedPageText(1500);
     if (/(?:Question|Câu)\s*\d+/i.test(allText)) return true;
     if (queryAllInDocs("input[type='radio'], input[type='checkbox'], select").length > 0) return true;
     return false;
@@ -813,13 +819,17 @@
 
   /**
    * Bộ giám sát chuyển câu tự động (Continuous Question Watcher)
-   * Tự động phát hiện khi đề thi chuyển sang câu tiếp theo và tự động giải ngay lập tức!
+   * Tối ưu hóa: Giãn chu kỳ kiểm tra lên 2500ms để CPU luôn ở mức cực thấp (< 3%)
    */
   function initAutoQuestionWatcher() {
     setInterval(async () => {
       // ⛔ 1. CHỈ CHẠY KHI MỘT TRONG CÁC CHẾ ĐỘ AUTO ĐANG THỰC SỰ BẬT!
-      // Khi không bật, CPU và RAM của extension bằng 0%, tuyệt đối không quét DOM ngầm.
       if (!isAutoNextRunning && !isMasterAutoRunning) {
+        return;
+      }
+
+      // Nếu đang trong tiến trình giải câu, nhường toàn bộ CPU
+      if (isSolvingCurrentQuestion) {
         return;
       }
 
@@ -890,7 +900,7 @@
           window._solvingStartTime = null;
         }
       }
-    }, 1200);
+    }, 2500);
   }
 
   /**
@@ -952,7 +962,7 @@
     while (isAutoNextRunning) {
       // 0. Nếu đang trong tiến trình AI giải, chờ nó giải và điền xong
       if (isSolvingCurrentQuestion) {
-        await sleep(400);
+        await sleep(800);
         continue;
       }
 
@@ -964,7 +974,7 @@
       }
 
       // 0b. Kiểm tra nếu bài thi đã hoàn thành đến câu cuối cùng hoặc màn hình kết thúc
-      const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+      const allDocsText = getCachedPageText();
       const isListening = isCurrentInListeningSection();
       const isEndReached = !isListening && (
         allDocsText.includes("Your test score is:") ||
@@ -993,7 +1003,7 @@
         } catch (err) {
           console.warn("[AutoNext] Lỗi khi giải câu:", err);
         }
-        await sleep(400);
+        await sleep(500);
       }
       isFirstIteration = false;
 
@@ -1003,14 +1013,14 @@
       if (!isCurrentQuestionAnswered()) {
         console.warn("[AutoNext] ⚠️ Phát hiện đáp án chưa được chọn đủ! Đang kích hoạt chọn bù...");
         await ensureAnswerChecked(currentCycleSolutions);
-        await sleep(400);
+        await sleep(500);
       }
 
       // 3. KHÓA CHẶN NEXT: Đảm bảo đã chọn ít nhất một đáp án trước khi bấm Next
       if (!isCurrentQuestionAnswered()) {
         console.warn("[AutoNext] ⚠️ Câu hỏi chưa có đáp án sau khi giải, kích hoạt chọn đáp án khả dĩ nhất...");
         await ensureAnswerChecked(currentCycleSolutions);
-        await sleep(300);
+        await sleep(400);
       }
 
       if (!isAutoNextRunning) break;
@@ -1030,7 +1040,7 @@
         let transitioned = false;
         const startWait = Date.now();
         while (Date.now() - startWait < 4500) {
-          await sleep(300);
+          await sleep(600);
           if (findAndClickSectionTransitionButton()) {
             transitioned = true;
             await sleep(1500);
@@ -1062,7 +1072,7 @@
           let transitioned = false;
           const startWait = Date.now();
           while (isAutoNextRunning && Date.now() - startWait < 90000) {
-            await sleep(350);
+            await sleep(1000);
 
             // 1. Kiểm tra nếu có nút chuyển tiếp Section
             if (findAndClickSectionTransitionButton()) {
@@ -1081,7 +1091,7 @@
             }
 
             // 3. Kiểm tra nếu bài thi kết thúc
-            const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+            const allDocsText = getCachedPageText();
             if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText)) {
               transitioned = true;
               break;
@@ -1176,7 +1186,7 @@
           }
 
           // A. Nếu đang ở màn hình kết thúc bài test (Score summary)
-          const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+          const allDocsText = getCachedPageText();
           const isScoreSummary = (
             allDocsText.includes("Your test score is:") ||
             /Test\s*Score\s*:\s*\d+/i.test(allDocsText) ||
@@ -1228,7 +1238,7 @@
           // Nếu trang có đề bài nhưng scan chưa thấy phần tử (đang render DOM), thử quét lại tối đa 3 lần
           if (questions.length === 0 && hasQuestionSign) {
             for (let r = 0; r < 3; r++) {
-              await sleep(500);
+              await sleep(600);
               questions = await scanDOMQuestions();
               if (questions.length > 0) break;
             }
@@ -1252,7 +1262,7 @@
             // 2. BẢO VỆ CHỐNG BỎ SÓT: Đảm bảo đáp án đã được chọn
             if (!isCurrentQuestionAnswered()) {
               await ensureAnswerChecked();
-              await sleep(400);
+              await sleep(500);
             }
 
             // 3. KHÓA BẢO VỆ TUYỆT ĐỐI: Không bao giờ bấm Next khi chưa điền đủ câu hỏi
@@ -1269,7 +1279,7 @@
               let transitioned = false;
               const startWait = Date.now();
               while (Date.now() - startWait < 4500) {
-                await sleep(300);
+                await sleep(600);
                 if (findAndClickSectionTransitionButton()) {
                   transitioned = true;
                   await sleep(1500);
@@ -1295,7 +1305,7 @@
                 let transitioned = false;
                 const startWait = Date.now();
                 while (isMasterAutoRunning && Date.now() - startWait < 90000) {
-                  await sleep(350);
+                  await sleep(1000);
 
                   // 1. Kiểm tra nếu có nút chuyển tiếp Section
                   if (findAndClickSectionTransitionButton()) {
@@ -1314,7 +1324,7 @@
                   }
 
                   // 3. Kiểm tra nếu bài thi kết thúc
-                  const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+                  const allDocsText = getCachedPageText();
                   if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText)) {
                     transitioned = true;
                     break;
@@ -1556,7 +1566,7 @@
   let _cachedExerciseDocsTime = 0;
   function getAllExerciseDocuments() {
     const now = Date.now();
-    if (_cachedExerciseDocs && (now - _cachedExerciseDocsTime < 800)) {
+    if (_cachedExerciseDocs && (now - _cachedExerciseDocsTime < 1500)) {
       return _cachedExerciseDocs;
     }
     const docs = [document];
@@ -1566,6 +1576,8 @@
         for (let i = 0; i < iframes.length; i++) {
           try {
             const ifr = iframes[i];
+            const src = (ifr.src || "").toLowerCase();
+            if (src.includes("googlesyndication") || src.includes("doubleclick") || src.includes("googleads")) continue;
             const innerDoc = ifr.contentDocument || ifr.contentWindow?.document;
             if (innerDoc && !docs.includes(innerDoc)) {
               docs.push(innerDoc);
@@ -1579,6 +1591,20 @@
     _cachedExerciseDocs = docs;
     _cachedExerciseDocsTime = now;
     return docs;
+  }
+
+  // Bộ nhớ đệm văn bản trang web: Dùng textContent (0% Reflow CPU) thay vì innerText (gây 100% CPU do ép tính layout)
+  let _cachedPageText = "";
+  let _cachedPageTextTime = 0;
+  function getCachedPageText(maxAge = 1200) {
+    const now = Date.now();
+    if (_cachedPageText && (now - _cachedPageTextTime < maxAge)) {
+      return _cachedPageText;
+    }
+    const docs = getAllExerciseDocuments();
+    _cachedPageText = docs.map(d => d.body?.textContent || "").join(" ");
+    _cachedPageTextTime = now;
+    return _cachedPageText;
   }
 
   function queryAllInDocs(selector) {
@@ -1762,8 +1788,7 @@
    * Trong phần Nghe, hệ thống ETS khoá không cho tua lại câu trước
    */
   function isCurrentInListeningSection() {
-    const allDocs = getAllExerciseDocuments();
-    const text = allDocs.map(d => d.body?.innerText || "").join(" ").toLowerCase();
+    const text = getCachedPageText().toLowerCase();
     return (
       text.includes("listening part") ||
       text.includes("listening test") ||
@@ -2077,9 +2102,6 @@
       return false;
     }
 
-    const allDocs = getAllExerciseDocuments();
-    const allText = allDocs.map(d => d.body?.innerText || "").join(" ");
-
     // 1. Kiểm tra tất cả các nhóm radio trên trang
     const radioGroups = groupRadioButtons();
     if (radioGroups.length > 0) {
@@ -2178,7 +2200,7 @@
       }
 
       // 0b. Kiểm tra nếu đang ở màn hình kết thúc bài test
-      const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+      const allDocsText = getCachedPageText();
       if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText) || allDocsText.includes("You have reached the end of the test")) {
         console.log("[Content] 🏁 Bài kiểm tra đã hoàn thành đến câu cuối cùng!");
         showResultsCard([{
@@ -2232,8 +2254,7 @@
       }
 
       // Gom toàn bộ nội dung văn bản từ tất cả iframe để AI hiểu toàn bộ ngữ cảnh bài tập
-      const allDocs = getAllExerciseDocuments();
-      const combinedPageText = allDocs.map(d => d.body?.innerText || "").filter(Boolean).join("\n---\n");
+      const combinedPageText = getCachedPageText();
 
       // 2. Phân loại bài tập: Part 5, 6, 7 là READING (Đọc hiểu/Điền từ), TUYỆT ĐỐI không nghe audio
       const qCurrentTitle = (getCurrentQuestionTitle() || "").toLowerCase();

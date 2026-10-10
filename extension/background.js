@@ -135,9 +135,9 @@ if (chrome.webRequest && chrome.webRequest.onBeforeRequest) {
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  // A. Chụp ảnh màn hình tab (sử dụng JPEG chất lượng 60% để giảm 95% RAM và dung lượng)
+  // A. Chụp ảnh màn hình tab (sử dụng JPEG chất lượng 40% để giảm tải CPU và RAM cho máy yếu)
   if (request.action === "capture_tab") {
-    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 60 }, (dataUrl) => {
+    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 40 }, (dataUrl) => {
       if (chrome.runtime.lastError || !dataUrl) {
         sendResponse({ success: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
       } else {
