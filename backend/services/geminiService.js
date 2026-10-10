@@ -10,14 +10,13 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || "");
 
-// Danh sách model ưu tiên siêu tốc (3.1-flash-lite và 3-flash-preview phản hồi dưới 1.5 giây, còn nguyên quota)
+// Danh sách model ưu tiên cao nhất: gemini-3.5-flash (tư duy logic đa phương thức cao nhất), sau đó là các bản flash-lite
 const CANDIDATE_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
-  "gemini-3-flash-preview",
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-flash-latest"
+  "gemini-3.1-flash-lite-preview",
+  "gemini-flash-lite-latest"
 ];
 
 /**
@@ -41,50 +40,88 @@ export async function solveQuestionsBatch({ questions, base64Image, pageText, au
   ];
 
   const prompt = `
-You are an expert English test examination solver, speech transcriber, and multimodal teacher.
-Analyze the provided English quiz questions carefully.
-Context from the web page (if available):
-${pageText ? pageText.substring(0, 3000) : "N/A"}
+You are an ELITE TOEIC MASTER EXAMINER and Native English Professor (990/990 TOEIC Scorer).
+Your mission is to achieve 100% PERFECT ACCURACY across all TOEIC Listening and Reading questions.
+You must cross-reference audio, visual screenshot, and question text with extreme rigor, avoiding all common test traps.
+
+CONTEXT FROM THE WEB PAGE (Passages, Directions, Full text):
+${pageText ? pageText.substring(0, 25000) : "N/A"}
 
 QUESTIONS TO SOLVE:
 ${JSON.stringify(finalQuestions, null, 2)}
 
-INSTRUCTIONS & STRICT RULES:
-1. VISUAL INSPECTION (IMAGE FIRST FOR PART 1 PHOTOGRAPHS):
-   - When an image/screenshot is provided (especially Part 1 photographs):
-     * Look closely at the actual photo on screen: inspect who is in the picture, what they are wearing, what actions they are performing (e.g. handing a document, standing behind a reception counter, typing on a computer), and what objects/furniture are present.
-     * In 'matching_details', describe the visible picture details with precision.
+=============================================================================
+CRITICAL RULES FOR 100% ACCURACY ACROSS ALL TOEIC SECTIONS:
+=============================================================================
 
-2. AUDIO TRANSCRIPTION & CONVERSATION:
-   - When audio is attached:
-     * For TOEIC Part 3 & 4 (Conversations / Talks): Transcribe the FULL conversation or speech accurately into 'conversation_transcript':
-       "Man: Good morning, Dr. Waheed...
-Woman: Thank you. I'm excited to attend the economics conference...
-Man: ..."
-     * For Part 1 (Photographs) or Part 2 (Question-Response): Transcribe the spoken question and options into 'conversation_transcript':
+1. TOEIC PART 1 - PHOTOGRAPHS (Image + Audio):
+   - INSPECT THE SCREENSHOT IMAGE METICULOUSLY:
+     * Identify who is in the picture, what they are wearing, what specific actions they are currently performing.
+     * Check object states and positions (e.g. Is the laptop open or closed? Are cups ON the table? Are shelves stacked? Is the street crowded?).
+   - LISTEN TO ALL 4 SPOKEN STATEMENTS (A), (B), (C), (D):
+     * Transcribe all 4 options verbatim in 'conversation_transcript':
        "(A) [Full spoken statement A]
 (B) [Full spoken statement B]
 (C) [Full spoken statement C]
 (D) [Full spoken statement D]"
-     * SANITY CHECK / CROSS-CHECK: If the audio statements talk about something completely absent from the photo, DETECT THE CONTEXT MISMATCH.
+   - TRAP AVOIDANCE: Eliminate statements describing actions not visibly occurring, wrong subjects, sound-alike words, or passive results that haven't happened. Pick the ONLY statement that is 100% visibly true.
 
-3. ANSWER SELECTION:
-   - 'question_id': MUST exactly match the id from the question input (e.g. "${finalQuestions[0]?.id || 'radio_q_1'}").
-   - 'selected_index': Integer 0 for A, 1 for B, 2 for C, 3 for D.
-   - 'selected_value': Must begin with the letter: "(A)", "(B)", "(C)", or "(D)".
-   - 'explanation': Clear, concise explanation in Vietnamese explaining WHY the answer is correct based on the conversation and image.
-   - 'confidence': Number between 0.0 and 1.0 (e.g. 0.98).
+2. TOEIC PART 2 - QUESTION-RESPONSE (Pure Audio):
+   - The question and options (A), (B), (C) are SPOKEN ONLY IN AUDIO (not written on screen).
+   - TRANSCRIBE BOTH THE QUESTION AND ALL 3 OPTIONS VERBATIM into 'conversation_transcript':
+     "Question: [Full spoken question or statement]
+(A) [Full spoken response A]
+(B) [Full spoken response B]
+(C) [Full spoken response C]"
+   - LOGICAL REASONING:
+     * Identify the question intent (Wh-question, Yes/No, Suggestion, Statement, Choice question).
+     * Wh-questions (Who, Where, When, What, Why, How) ALMOST NEVER accept Yes/No answers.
+     * Beware of same-word repetition traps (words that sound the same or repeat from the question in the wrong meaning).
+     * The correct answer is often an indirect, realistic conversational response (e.g. "When is the meeting?" -> "I haven't checked my calendar yet").
 
-STRICT JSON SCHEMA:
+3. TOEIC PART 3 & PART 4 - CONVERSATIONS & TALKS (Audio + Written Questions):
+   - TRANSCRIBE the entire conversation/speech verbatim into 'conversation_transcript'.
+   - FOR EACH QUESTION (usually 3 questions per talk):
+     * Locate the EXACT segment in the talk that addresses the question.
+     * Quote the exact spoken sentence in 'evidence_quote'.
+     * TRAP AVOIDANCE: Beware of distractor options that repeat a word mentioned by the speaker in a different, negative, or hypothetical context (e.g. "We considered option A, but we chose option B").
+     * GRAPHIC QUESTIONS ("Look at the graphic"): Look at the chart/table in the screenshot image! Cross-reference the detail spoken in the audio with the table to find the matching choice.
+
+4. TOEIC PART 5 & PART 6 - INCOMPLETE SENTENCES & TEXT COMPLETION:
+   - Perform strict syntactic and grammatical analysis:
+     * Identify subject, predicate, clauses, prepositions, conjunctions.
+     * Determine exact part of speech needed for the blank (noun, verb, adjective, adverb, gerund, infinitive).
+     * Check subject-verb agreement, verb tense, active vs passive voice.
+     * For vocabulary questions, check precise business collocations and prepositions.
+     * For Part 6 sentence insertion, verify contextual coherence with both preceding and following sentences.
+
+5. TOEIC PART 7 - READING COMPREHENSION:
+   - Read the full passage, email, notice, or table provided in the page text and screenshot.
+   - Quote the exact sentence or paragraph that proves the answer in 'evidence_quote'.
+   - For double and triple passages, synthesize cross-document information (e.g., date in email + schedule in attachment).
+
+=============================================================================
+MANDATORY STEP-BY-STEP REASONING & JSON SCHEMA:
+=============================================================================
+Before committing to the answer index, you MUST write down:
+1. 'evidence_quote': The exact sentence from the audio transcript or reading passage proving the answer.
+2. 'reasoning_steps': Step-by-step logic explaining why the chosen option is correct and eliminating distractor traps.
+3. 'selected_index': 0 for (A), 1 for (B), 2 for (C), 3 for (D).
+4. 'selected_value': Must begin with the letter: "(A) ...", "(B) ...", "(C) ...", or "(D) ...".
+5. 'explanation': Súc tích, rõ ràng bằng tiếng Việt giải thích vì sao chọn đáp án này.
+
+STRICT JSON OUTPUT FORMAT:
 {
   "conversation_transcript": "string containing the full verbatim conversation or spoken statements from the audio",
   "solutions": [
     {
-      "question_id": "string",
+      "question_id": "string matching the question id",
+      "evidence_quote": "exact sentence from audio or passage",
+      "reasoning_steps": "logical deduction and distractor elimination",
       "selected_index": 0,
-      "selected_value": "(A) Economics",
-      "explanation": "string in Vietnamese",
-      "confidence": 0.98
+      "selected_value": "(A) Full text of option",
+      "explanation": "giải thích ngắn gọn súc tích bằng tiếng Việt",
+      "confidence": 0.99
     }
   ]
 }
@@ -106,7 +143,7 @@ STRICT JSON SCHEMA:
       console.log(`[GeminiService] 🎧 ĐÃ GẮN FILE ÂM THANH BÀI NGHE (${audioMime || "audio/mp3"}, ${Math.round(cleanAudio.length / 1024)} KB) VÀO GEMINI!`);
     }
   } else {
-    console.log(`[GeminiService] ⚡ Không có audio âm thanh hợp lệ. Phân tích bằng hình ảnh & văn bản...`);
+    console.log(`[GeminiService] ⚡ Không có audio âm thanh đính kèm. Phân tích bằng hình ảnh & văn bản...`);
   }
 
   // 2. Đính kèm ảnh chụp màn hình đa phương thức nếu có
@@ -124,18 +161,17 @@ STRICT JSON SCHEMA:
 
   contents.push(prompt);
 
-
-  // Thử lần lượt các model Flash để đảm bảo luôn phản hồi thành công
+  // Thử lần lượt các model Flash để đảm bảo luôn phản hồi thành công và đạt độ chính xác cao nhất
   let lastError = null;
   for (const modelName of CANDIDATE_MODELS) {
     try {
-      console.log(`[GeminiService] Đang gọi model: ${modelName}...`);
+      console.log(`[GeminiService] 🚀 Đang gọi model trí tuệ cao: ${modelName}...`);
       const model = genAI.getGenerativeModel({
         model: modelName,
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,
-          maxOutputTokens: 4000
+          maxOutputTokens: 6000
         }
       });
 
@@ -148,7 +184,7 @@ STRICT JSON SCHEMA:
       const conversationTranscript = parsedRes.conversation_transcript || solutions.conversation_transcript || "";
       solutions.conversation_transcript = conversationTranscript;
 
-      console.log(`[GeminiService] Đã giải thành công ${solutions.length} câu hỏi với model ${modelName}!`);
+      console.log(`[GeminiService] ✅ Đã giải thành công ${solutions.length} câu hỏi với model ${modelName}!`);
       return { conversation_transcript: conversationTranscript, solutions };
     } catch (err) {
       console.warn(`[GeminiService] Model ${modelName} gặp sự cố: ${err.message}. Đang thử model tiếp theo...`);
@@ -198,6 +234,8 @@ function safeParseSolutions(rawText) {
         const qId = match[0].match(/"question_id"\s*:\s*"([^"]+)"/)?.[1];
         const sIdx = match[0].match(/"selected_index"\s*:\s*(\d+)/)?.[1];
         const sVal = match[0].match(/"selected_value"\s*:\s*"([^"]+)"/)?.[1];
+        const ev = match[0].match(/"evidence_quote"\s*:\s*"([^"]*)"/)?.[1];
+        const rsn = match[0].match(/"reasoning_steps"\s*:\s*"([^"]*)"/)?.[1];
         const trans = match[0].match(/"transcript"\s*:\s*"([^"]*)"/)?.[1];
         const exp = match[0].match(/"explanation"\s*:\s*"([^"]*)"/)?.[1];
         const conf = match[0].match(/"confidence"\s*:\s*([0-9.]+)/)?.[1];
@@ -206,9 +244,11 @@ function safeParseSolutions(rawText) {
             question_id: qId,
             selected_index: sIdx ? parseInt(sIdx, 10) : 0,
             selected_value: sVal || "",
+            evidence_quote: ev || "",
+            reasoning_steps: rsn || "",
             transcript: trans || "",
             explanation: exp || "",
-            confidence: conf ? parseFloat(conf) : 0.95
+            confidence: conf ? parseFloat(conf) : 0.99
           });
         }
       }

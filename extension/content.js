@@ -2466,10 +2466,19 @@
           audioData = await fetchAudioAsBase64(audioUrl);
         }
 
-        // 3. Nếu chưa tải được audio trực tiếp, đợi Background bắt network request của câu này (tối đa 1.5 giây)
+        // 3. Nếu chưa tải được audio trực tiếp, tích cực dò tìm lại và đợi Background bắt network request (tối đa 3.5 giây)
         if (!audioData) {
           const waitAudioStart = Date.now();
-          while (Date.now() - waitAudioStart < 1500) {
+          while (Date.now() - waitAudioStart < 3500) {
+            // Thử quét lại DOM / Performance Timeline vì audio có thể vừa nạp sau khi bấm Play
+            const retryUrl = findAudioUrl();
+            if (retryUrl && retryUrl !== audioUrl) {
+              audioUrl = retryUrl;
+              console.log(`[Content] 🎵 Bắt được audio bài nghe trong vòng lặp chờ:`, audioUrl);
+              audioData = await fetchAudioAsBase64(audioUrl);
+              if (audioData) break;
+            }
+
             try {
               const bgRes = await chrome.runtime.sendMessage({
                 action: "get_audio",
@@ -2489,14 +2498,16 @@
           if (!audioData.mime || !audioData.mime.startsWith("audio/")) {
             console.warn("[Content] ⚠️ Bỏ qua audioData vì MIME không phải audio:", audioData.mime);
             audioData = null;
+          } else {
+            console.log(`[Content] 🎯 Đã chuẩn bị sẵn sàng audio bài nghe (${Math.round(audioData.base64?.length / 1024)} KB) cho AI phân tích!`);
           }
         }
       }
 
       // 3. Chụp ảnh màn hình:
-      // - Với Part 1 TOEIC (bài miêu tả ảnh): 100% BẮT BUỘC PHẢI CHỤP MÀN HÌNH để AI nhìn thấy bức tranh!
-      // - Với Part 3/4/7 có biểu đồ/tranh: Chụp màn hình để AI đọc ngữ cảnh
-      // - Với Part 2 (chỉ hỏi đáp audio thuần túy): Bỏ qua chụp ảnh để tăng tốc
+      // - Với Part 2 TOEIC (chỉ hỏi đáp audio thuần túy, màn hình trống): Bỏ qua chụp để tối ưu tốc độ
+      // - Với TẤT CẢ các phần còn lại (Part 1 ảnh, Part 3/4 đồ thị/bảng biểu, Part 5/6/7 bài đọc hiểu):
+      //   LUÔN LUÔN chụp ảnh màn hình để AI so khớp trực quan 100% bố cục và dữ liệu!
       let screenshotBase64 = null;
       const isPart1 = (
         allDocsText.includes("Listening Part 1") ||
@@ -2506,23 +2517,14 @@
       );
       const isPart2 = (allDocsText.includes("Listening Part 2") || qCurrentTitle.includes("part 2")) && !isPart1;
 
-      const visibleImages = queryAllInDocs("img, canvas, svg, picture, [style*='background-image']").filter(img => {
-        if (isAiElement(img) || !isElementVisible(img)) return false;
-        const r = img.getBoundingClientRect();
-        const src = (img.src || "").toLowerCase();
-        return r.width > 60 && r.height > 60 && !src.includes("logo") && !src.includes("icon") && !src.includes("sound");
-      });
-      const hasImages = visibleImages.length > 0;
-
-      // NẾU LÀ PART 1 HOẶC TRANG CÓ TRANH/ẢNH MINH HỌA
-      const shouldCaptureScreenshot = isPart1 || (!isPart2 && hasImages);
+      const shouldCaptureScreenshot = !isPart2;
 
       if (shouldCaptureScreenshot) {
         try {
           const captureResp = await chrome.runtime.sendMessage({ action: "capture_tab" });
           if (captureResp && captureResp.success && captureResp.dataUrl) {
             screenshotBase64 = captureResp.dataUrl;
-            console.log(`[Content] 📸 Đã chụp ảnh màn hình bài tập (${Math.round(screenshotBase64.length / 1024)} KB) - isPart1: ${isPart1}`);
+            console.log(`[Content] 📸 Đã chụp ảnh màn hình bài tập (${Math.round(screenshotBase64.length / 1024)} KB) để AI so khớp đa phương thức!`);
           } else {
             console.warn("[Content] Không thể chụp tab, captureResp:", captureResp);
           }
@@ -2530,7 +2532,7 @@
           console.warn("[Content] Lỗi khi chụp ảnh màn hình:", e);
         }
       } else {
-        console.log("[Content] ⚡ Bỏ qua chụp ảnh màn hình (Part 2 thuần audio) để tăng tốc độ tối đa!");
+        console.log("[Content] ⚡ Bỏ qua chụp ảnh màn hình (Part 2 thuần audio) để tăng tốc độ!");
       }
 
       // 4. Gửi sang Backend Node.js
