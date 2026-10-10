@@ -1,5 +1,5 @@
 // AI English Auto Solver - Service Worker (Background)
-const DEFAULT_BACKEND_URL = "http://localhost:5000";
+const DEFAULT_BACKEND_URL = "https://toeic-ai-solver.onrender.com";
 
 // Bộ nhớ đệm lưu thông tin audio bài nghe
 let lastCapturedAudio = null;

@@ -1,5 +1,5 @@
 // AI English Auto Solver - Popup Settings Script
-const DEFAULT_BACKEND_URL = "http://localhost:5000";
+const DEFAULT_BACKEND_URL = "https://toeic-ai-solver.onrender.com";
 
 document.addEventListener("DOMContentLoaded", () => {
   const backendInput = document.getElementById("backendUrl");
@@ -17,9 +17,14 @@ document.addEventListener("DOMContentLoaded", () => {
   chrome.storage.local.get(
     ["backendUrl", "run247Mode", "autoNextMode", "ai_toolbar_hidden", "ai_toolbar_minimized"],
     (res) => {
-      // Backend URL
-      backendInput.value = res.backendUrl || DEFAULT_BACKEND_URL;
-      checkBackendHealth(backendInput.value);
+      // Backend URL (tự động chuyển sang Cloud Render nếu chưa đổi)
+      let url = res.backendUrl || DEFAULT_BACKEND_URL;
+      if (url === "http://localhost:5000") {
+        url = DEFAULT_BACKEND_URL;
+        chrome.storage.local.set({ backendUrl: url });
+      }
+      backendInput.value = url;
+      checkBackendHealth(url);
 
       // 24/7 Mode (Mặc định bật true)
       if (chkRun247) {
