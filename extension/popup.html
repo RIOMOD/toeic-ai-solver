@@ -289,11 +289,35 @@
     </div>
   </div>
 
+  <!-- History of Answers Section -->
+  <div class="section-title">
+    <span>📜</span> Lịch Sử Đáp Án Bài Thi
+  </div>
+
+  <div class="setting-card">
+    <div class="setting-row">
+      <span class="setting-label">
+        <span>📁</span> <span id="historySummaryText">0 bài thi đã lưu</span>
+      </span>
+      <div style="display:flex; gap: 4px;">
+        <button id="btnExportAllTxt" class="btn-sm" style="padding: 3px 8px; font-size: 10.5px;" title="Tải về file TXT đáp án bài gần nhất">
+          Xuất TXT
+        </button>
+        <button id="btnClearAllHistory" class="btn-sm" style="padding: 3px 8px; font-size: 10.5px; border-color: #ef4444; color: #f87171;" title="Xóa toàn bộ lịch sử">
+          Xóa
+        </button>
+      </div>
+    </div>
+    <div id="popupHistoryList" style="margin-top: 8px; max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+      <!-- Dynamic list -->
+    </div>
+  </div>
+
   <!-- Operational Notice: How it works on screen -->
   <div class="info-notice">
     <span style="font-size: 15px;">💡</span>
     <div>
-      <strong>Thao tác giải bài trực tiếp:</strong> Toàn bộ hoạt động (<em>Quét & Giải bài</em>, <em>Siêu Auto</em>, <em>Dò bài</em>, <em>Next</em>) đều nằm trực tiếp trên <strong>Bong bóng AI nổi trên màn hình bài thi</strong>.
+      <strong>Thao tác giải bài trực tiếp:</strong> Toàn bộ hoạt động (<em>Quét & Giải bài</em>, <em>Siêu Auto</em>, <em>Dò bài</em>, <em>Next</em>, <em>Lịch sử đáp án</em>) đều nằm trực tiếp trên <strong>Bong bóng AI nổi trên màn hình bài thi</strong>.
     </div>
   </div>
 
@@ -306,6 +330,7 @@
       <span>Ẩn/Hiện Tàng Hình:</span> <kbd>Alt + Z</kbd> <kbd style="margin-left: 2px;">Alt + H</kbd>
       <span>Quét & Giải câu này:</span> <kbd>Alt + S</kbd>
       <span>Next câu tiếp theo:</span> <kbd>Alt + N</kbd>
+      <span>Xem lịch sử đáp án:</span> <kbd>Alt + L</kbd>
       <span>Bật / Tắt Tự Động Next:</span> <kbd>Alt + A</kbd>
       <span>Bật / Tắt Siêu Auto:</span> <kbd>Alt + M</kbd>
       <span>Đóng nhanh bảng đáp án:</span> <kbd>Esc</kbd>

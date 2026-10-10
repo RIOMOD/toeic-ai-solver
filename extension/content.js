@@ -480,6 +480,9 @@
       <button class="ai-toolbar-btn notranslate" id="ai-btn-review" title="Dò lại bài thi xem đã hoàn thành hết các câu chưa">
         <span class="notranslate">🔍</span> <span class="notranslate" id="ai-review-text">Dò Lại Bài</span>
       </button>
+      <button class="ai-toolbar-btn notranslate" id="ai-btn-history" title="Xem & Tải lịch sử đáp án bài thi này (Phím tắt: Alt + L)">
+        <span class="notranslate">📜</span> <span class="notranslate" id="ai-history-text">Lịch Sử</span>
+      </button>
       <button class="ai-toolbar-btn notranslate" id="ai-btn-next" title="Chuyển ngay sang câu tiếp theo (Phím tắt: Alt + N)">
         <span class="notranslate">⏭️</span>
       </button>
@@ -523,6 +526,10 @@
 
     toolbar.querySelector("#ai-btn-review").addEventListener("click", () => {
       runReviewAndCheckCompletion();
+    });
+
+    toolbar.querySelector("#ai-btn-history").addEventListener("click", () => {
+      showHistoryModal();
     });
 
     toolbar.querySelector("#ai-btn-next").addEventListener("click", () => {
@@ -602,13 +609,15 @@
   // BẮT SỰ KIỆN BÀN PHÍM TOÀN TRANG (KEYBOARD SHORTCUTS LISTENER)
   // =========================================================================
   window.addEventListener("keydown", (e) => {
-    // 1. Phím tắt Escape: Đóng nhanh bảng kết quả hoặc review modal nếu đang mở
+    // 1. Phím tắt Escape: Đóng nhanh bảng kết quả, review modal hoặc history modal nếu đang mở
     if (e.key === "Escape") {
       const card = document.getElementById("ai-solver-card");
       const modal = document.getElementById("ai-review-modal");
-      if (card || modal) {
+      const historyModal = document.getElementById("ai-history-modal");
+      if (card || modal || historyModal) {
         if (card) card.remove();
         if (modal) modal.remove();
+        if (historyModal) historyModal.remove();
         e.preventDefault();
         e.stopImmediatePropagation();
         e.stopPropagation();
@@ -687,6 +696,16 @@
       e.stopPropagation();
       console.log("[Hotkey] 🚀 Nhấn Alt + M: Bật/Tắt Siêu Auto!");
       toggleMasterAuto();
+      return;
+    }
+
+    // 7. Phím tắt Alt + L: Xem & Tải Lịch Sử Đáp Án Bài Thi
+    if (isAlt && (key === "l" || code === "KeyL")) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      console.log("[Hotkey] 📜 Nhấn Alt + L: Mở Lịch Sử Đáp Án Bài Thi!");
+      showHistoryModal();
       return;
     }
   }, true);
@@ -2206,7 +2225,7 @@
         showResultsCard([{
           question_id: "Hoàn Thành",
           selected_value: "100%",
-          explanation: "🎉 Chúc mừng bạn! Bài thi đã được giải xong toàn bộ từ đầu đến cuối.",
+          explanation: "🎉 Chúc mừng bạn! Bài thi đã được giải xong toàn bộ từ đầu đến cuối. Bấm nút '📜 Lịch Sử Bài' ở trên để xem và tải về file đáp án.",
           confidence: 1.0
         }]);
         if (solveText) solveText.innerText = "Đã Hoàn Thành!";
@@ -2404,6 +2423,9 @@
         console.warn("[Content] ⚠️ Phát hiện đáp án chưa được chọn sau autoFill! Đang kích hoạt chọn bù theo AI...");
         await ensureAnswerChecked(solutions);
       }
+
+      // 5c. Tự động lưu lịch sử đáp án bài thi này
+      await recordTestAnswers(solutions, questionsData);
 
       // 6. Hiển thị bảng kết quả nổi trên trang
       showResultsCard(solutions);
@@ -3937,7 +3959,10 @@
     card.innerHTML = `
       <div class="ai-card-header">
         <div class="ai-card-title"><span>✨</span> ${escapeHtml(pageTitle || "AI Đã Giải Xong")} (${solutions.length} câu)</div>
-        <button class="ai-card-close" id="ai-card-close-btn">&times;</button>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="ai-card-btn-history notranslate" id="ai-card-history-btn" title="Xem & tải toàn bộ lịch sử đáp án bài thi này (Phím tắt: Alt + L)">📜 Lịch Sử Bài</button>
+          <button class="ai-card-close" id="ai-card-close-btn">&times;</button>
+        </div>
       </div>
       <div class="ai-answers-list">
         ${itemsHtml}
@@ -3947,6 +3972,10 @@
 
     document.getElementById("ai-card-close-btn").addEventListener("click", () => {
       card.remove();
+    });
+
+    document.getElementById("ai-card-history-btn")?.addEventListener("click", () => {
+      showHistoryModal();
     });
   }
 
@@ -4399,6 +4428,295 @@
 
     // Nếu không phải màn hình review tổng quan bài thi (đang ở màn hình câu hỏi thông thường)
     return { total: 0, answered: [], unanswered: [], items: [] };
+  }
+
+  // =========================================================================
+  // HỆ THỐNG LƯU TRỮ & XEM LỊCH SỬ ĐÁP ÁN BÀI THI (TEST ANSWER HISTORY)
+  // =========================================================================
+  let _currentTestSessionId = null;
+
+  function getOrCreateTestSessionId() {
+    if (!_currentTestSessionId) {
+      try {
+        const saved = sessionStorage.getItem("_toeic_active_session_id");
+        if (saved) {
+          _currentTestSessionId = saved;
+        } else {
+          _currentTestSessionId = "test_" + Date.now();
+          sessionStorage.setItem("_toeic_active_session_id", _currentTestSessionId);
+        }
+      } catch (e) {
+        _currentTestSessionId = "test_" + Date.now();
+      }
+    }
+    return _currentTestSessionId;
+  }
+
+  async function recordTestAnswers(solutions, questionsData = []) {
+    if (!solutions || solutions.length === 0) return;
+    const sessionId = getOrCreateTestSessionId();
+    const pageTitle = getCurrentQuestionTitle() || document.title || "Bài Thi TOEIC";
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = now.toLocaleDateString('vi-VN');
+
+    try {
+      const data = await chrome.storage.local.get(["toeic_test_history"]);
+      let history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+
+      let session = history.find(s => s.id === sessionId);
+      if (!session) {
+        session = {
+          id: sessionId,
+          title: pageTitle.length > 70 ? pageTitle.substring(0, 70) + "..." : pageTitle,
+          url: window.location.href,
+          createdAt: `${dateStr} ${timeStr}`,
+          lastUpdated: `${dateStr} ${timeStr}`,
+          answers: []
+        };
+        history.unshift(session);
+      } else {
+        session.lastUpdated = `${dateStr} ${timeStr}`;
+      }
+
+      solutions.forEach((sol, idx) => {
+        const qData = questionsData.find(q => q.id === sol.question_id) || questionsData[idx];
+        const qNum = sol.question_id && !sol.question_id.startsWith("q_")
+          ? (isNaN(sol.question_id) ? sol.question_id : `Câu ${sol.question_id}`)
+          : (pageTitle || `Câu ${session.answers.length + 1}`);
+
+        const promptText = qData?.prompt || sol.question_text || "";
+        const existingIdx = session.answers.findIndex(a =>
+          (a.id && sol.question_id && a.id === sol.question_id) ||
+          (a.questionNum === qNum && promptText && a.prompt === promptText)
+        );
+
+        const answerRecord = {
+          id: sol.question_id || `q_${Date.now()}_${idx}`,
+          questionNum: qNum,
+          prompt: promptText,
+          selectedAnswer: sol.selected_value || "N/A",
+          explanation: sol.explanation || "",
+          confidence: Math.round((sol.confidence || 0.98) * 100),
+          transcript: sol.transcript || null,
+          time: timeStr
+        };
+
+        if (existingIdx >= 0) {
+          session.answers[existingIdx] = answerRecord;
+        } else {
+          session.answers.push(answerRecord);
+        }
+      });
+
+      // Giới hạn lưu 30 bài thi gần nhất
+      if (history.length > 30) {
+        history = history.slice(0, 30);
+      }
+
+      await chrome.storage.local.set({ toeic_test_history: history });
+      console.log(`[History] 📝 Đã lưu lịch sử: ${session.answers.length} câu hỏi cho bài thi [${session.title}]`);
+    } catch (err) {
+      console.warn("[History] Lỗi khi lưu lịch sử đáp án:", err);
+    }
+  }
+
+  function exportSessionToTxt(session) {
+    if (!session || !session.answers || session.answers.length === 0) {
+      showAiToast("⚠️ Chưa có đáp án nào để xuất file!");
+      return;
+    }
+
+    let content = `========================================================================\r\n`;
+    content += `BẢNG ĐÁP ÁN BÀI THI: ${session.title}\r\n`;
+    content += `Thời gian làm bài: ${session.createdAt || session.lastUpdated}\r\n`;
+    content += `Đường dẫn bài thi: ${session.url}\r\n`;
+    content += `Tổng số câu đã giải: ${session.answers.length} câu\r\n`;
+    content += `========================================================================\r\n\r\n`;
+
+    session.answers.forEach((ans, i) => {
+      content += `[${i + 1}] ${ans.questionNum || `Câu ${i + 1}`}\r\n`;
+      if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
+      content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer}\r\n`;
+      if (ans.confidence) content += `Độ tin cậy AI: ${ans.confidence}%\r\n`;
+      if (ans.transcript) content += `Phụ đề nghe được (Transcript): ${ans.transcript}\r\n`;
+      if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
+      content += `------------------------------------------------------------------------\r\n\r\n`;
+    });
+
+    content += `Xuất tự động bởi TOEIC AI Auto Solver\r\n`;
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+    a.href = url;
+    a.download = `${safeName}_Dap_An.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showAiToast(`💾 Đã xuất file TXT: ${session.answers.length} câu hỏi!`);
+  }
+
+  function exportSessionToJson(session) {
+    if (!session || !session.answers || session.answers.length === 0) {
+      showAiToast("⚠️ Chưa có đáp án nào để xuất file!");
+      return;
+    }
+    const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+    a.href = url;
+    a.download = `${safeName}_Dap_An.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showAiToast(`💾 Đã xuất file JSON thành công!`);
+  }
+
+  async function copySessionAnswers(session) {
+    if (!session || !session.answers || session.answers.length === 0) {
+      showAiToast("⚠️ Chưa có đáp án nào để sao chép!");
+      return;
+    }
+    let text = `📋 ĐÁP ÁN ${session.title} (${session.answers.length} CÂU):\n`;
+    session.answers.forEach((ans, i) => {
+      text += `${ans.questionNum || `Câu ${i + 1}`}: ${ans.selectedAnswer}`;
+      if (ans.explanation) text += ` — ${ans.explanation}`;
+      text += `\n`;
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      showAiToast(`📋 Đã sao chép ${session.answers.length} đáp án vào bộ nhớ tạm!`);
+    } catch (e) {
+      showAiToast("⚠️ Không thể sao chép tự động!");
+    }
+  }
+
+  async function showHistoryModal(targetSessionId = null) {
+    let modal = document.getElementById("ai-history-modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "ai-history-modal";
+      modal.className = "notranslate";
+      document.body.appendChild(modal);
+    }
+
+    const data = await chrome.storage.local.get(["toeic_test_history"]);
+    const history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+
+    if (history.length === 0) {
+      modal.innerHTML = `
+        <div class="ai-card-header">
+          <div class="ai-card-title"><span>📜</span> Lịch Sử Đáp Án Bài Thi</div>
+          <button class="ai-card-close" onclick="document.getElementById('ai-history-modal').remove()">&times;</button>
+        </div>
+        <div style="padding: 30px 16px; text-align: center; color: #94a3b8;">
+          <div style="font-size: 32px; margin-bottom: 12px;">📂</div>
+          <div style="font-size: 13.5px; color: #f8fafc; font-weight: 600; margin-bottom: 6px;">Chưa có lịch sử làm bài nào</div>
+          <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4;">
+            Khi bạn quét và giải câu hỏi (hoặc chạy Tự Động Next / Siêu Auto), toàn bộ đáp án và lời giải sẽ tự động được lưu lại tại đây!
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Lấy bài thi cần hiển thị (mặc định bài thi hiện tại hoặc bài thi gần nhất)
+    const currentSessionId = getOrCreateTestSessionId();
+    let activeSession = history.find(s => s.id === (targetSessionId || currentSessionId)) || history[0];
+
+    // Tạo danh sách chọn bài thi
+    const sessionOptionsHtml = history.map(s => {
+      const isSelected = s.id === activeSession.id ? "selected" : "";
+      const displayTitle = s.title.length > 25 ? s.title.substring(0, 25) + "..." : s.title;
+      return `<option value="${s.id}" ${isSelected}>${escapeHtml(displayTitle)} (${s.answers?.length || 0} câu - ${s.lastUpdated || ""})</option>`;
+    }).join("");
+
+    const answersListHtml = (activeSession.answers && activeSession.answers.length > 0)
+      ? activeSession.answers.map((ans, idx) => `
+        <div class="ai-history-item">
+          <div class="ai-history-header">
+            <span class="ai-history-qnum">#${idx + 1}. ${escapeHtml(ans.questionNum || `Câu ${idx + 1}`)}</span>
+            <span class="ai-history-badge">👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}</span>
+          </div>
+          ${ans.prompt ? `<div class="ai-history-prompt">📖 ${escapeHtml(ans.prompt)}</div>` : ""}
+          ${ans.transcript ? `<div class="ai-history-prompt" style="color:#38bdf8;">🎧 Transcript: ${escapeHtml(ans.transcript)}</div>` : ""}
+          <div class="ai-history-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(ans.explanation || "Không có lời giải thích")}</div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 4px; text-align: right;">Độ tin cậy: ${ans.confidence || 98}% • ${ans.time || ""}</div>
+        </div>
+      `).join("")
+      : `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px;">Chưa có câu hỏi nào được lưu trong bài thi này.</div>`;
+
+    modal.innerHTML = `
+      <div class="ai-card-header">
+        <div class="ai-card-title">
+          <span>📜</span> Lịch Sử Đáp Án Bài Thi 
+          <span style="font-size:11px;background:rgba(56,189,248,0.2);color:#38bdf8;padding:1px 6px;border-radius:10px;font-weight:700;">${activeSession.answers?.length || 0} câu</span>
+        </div>
+        <button class="ai-card-close" id="ai-history-close-btn">&times;</button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;">
+        <span style="font-size:11.5px;color:#94a3b8;white-space:nowrap;">Chọn bài thi:</span>
+        <select id="ai-history-session-select" class="ai-history-select">
+          ${sessionOptionsHtml}
+        </select>
+      </div>
+
+      <div class="ai-history-toolbar">
+        <button id="ai-btn-copy-history" class="ai-history-btn" title="Sao chép toàn bộ đáp án vào clipboard">
+          <span>📋</span> Sao Chép
+        </button>
+        <button id="ai-btn-export-txt" class="ai-history-btn" title="Tải về file text">
+          <span>💾</span> Tải TXT
+        </button>
+        <button id="ai-btn-export-json" class="ai-history-btn" title="Tải về file JSON">
+          <span>📥</span> Tải JSON
+        </button>
+        <button id="ai-btn-del-history" class="ai-history-btn danger" title="Xóa lịch sử bài thi này">
+          <span>🗑️</span> Xóa Bài Này
+        </button>
+      </div>
+
+      <div class="ai-history-list" id="ai-history-list">
+        ${answersListHtml}
+      </div>
+    `;
+
+    document.getElementById("ai-history-close-btn")?.addEventListener("click", () => {
+      modal.remove();
+    });
+
+    document.getElementById("ai-history-session-select")?.addEventListener("change", (e) => {
+      showHistoryModal(e.target.value);
+    });
+
+    document.getElementById("ai-btn-copy-history")?.addEventListener("click", () => {
+      copySessionAnswers(activeSession);
+    });
+
+    document.getElementById("ai-btn-export-txt")?.addEventListener("click", () => {
+      exportSessionToTxt(activeSession);
+    });
+
+    document.getElementById("ai-btn-export-json")?.addEventListener("click", () => {
+      exportSessionToJson(activeSession);
+    });
+
+    document.getElementById("ai-btn-del-history")?.addEventListener("click", async () => {
+      if (confirm(`Bạn có chắc chắn muốn xóa lịch sử đáp án của bài thi "${activeSession.title}" không?`)) {
+        const d = await chrome.storage.local.get(["toeic_test_history"]);
+        let h = Array.isArray(d.toeic_test_history) ? d.toeic_test_history : [];
+        h = h.filter(s => s.id !== activeSession.id);
+        await chrome.storage.local.set({ toeic_test_history: h });
+        showAiToast("🗑️ Đã xóa bài thi khỏi lịch sử!");
+        showHistoryModal();
+      }
+    });
   }
 
   function showReviewModal(data) {

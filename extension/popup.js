@@ -184,4 +184,143 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // 7. Quản lý và hiển thị Lịch sử Đáp án Bài thi
+  const historySummaryText = document.getElementById("historySummaryText");
+  const popupHistoryList = document.getElementById("popupHistoryList");
+  const btnExportAllTxt = document.getElementById("btnExportAllTxt");
+  const btnClearAllHistory = document.getElementById("btnClearAllHistory");
+
+  async function loadAndRenderHistory() {
+    const data = await chrome.storage.local.get(["toeic_test_history"]);
+    const history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+
+    if (!historySummaryText || !popupHistoryList) return;
+
+    if (history.length === 0) {
+      historySummaryText.innerText = "0 bài thi đã lưu";
+      popupHistoryList.innerHTML = `
+        <div style="color: #64748b; font-size: 11px; text-align: center; padding: 8px;">
+          Chưa có bài thi nào được lưu lại.
+        </div>
+      `;
+      return;
+    }
+
+    historySummaryText.innerText = `${history.length} bài thi đã lưu`;
+    popupHistoryList.innerHTML = history.map((session, idx) => {
+      const qCount = session.answers?.length || 0;
+      const title = session.title?.length > 28 ? session.title.substring(0, 28) + "..." : (session.title || "Bài Thi");
+      return `
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 8px; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+          <div style="overflow: hidden; flex: 1;">
+            <div style="font-size: 11px; font-weight: 600; color: #f8fafc; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;" title="${session.title || ''}">
+              ${title}
+            </div>
+            <div style="font-size: 10px; color: #94a3b8; display: flex; gap: 6px; margin-top: 2px;">
+              <span style="color: #38bdf8; font-weight: bold;">${qCount} câu</span>
+              <span>•</span>
+              <span>${session.lastUpdated || ""}</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 4px; flex-shrink: 0;">
+            <button class="btn-sm btn-export-session" data-idx="${idx}" style="padding: 3px 6px; font-size: 10px;" title="Tải về file TXT">
+              📥 TXT
+            </button>
+            <button class="btn-sm btn-copy-session" data-idx="${idx}" style="padding: 3px 6px; font-size: 10px;" title="Sao chép đáp án">
+              📋
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    // Gắn sự kiện tải từng bài
+    popupHistoryList.querySelectorAll(".btn-export-session").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.getAttribute("data-idx"), 10);
+        const s = history[idx];
+        if (s) downloadSessionTxt(s);
+      });
+    });
+
+    // Gắn sự kiện copy từng bài
+    popupHistoryList.querySelectorAll(".btn-copy-session").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const idx = parseInt(btn.getAttribute("data-idx"), 10);
+        const s = history[idx];
+        if (s && s.answers) {
+          let text = `📋 ĐÁP ÁN: ${s.title} (${s.answers.length} câu):\n`;
+          s.answers.forEach((ans, i) => {
+            text += `${ans.questionNum || `Câu ${i + 1}`}: ${ans.selectedAnswer}`;
+            if (ans.explanation) text += ` — ${ans.explanation}`;
+            text += `\n`;
+          });
+          await navigator.clipboard.writeText(text);
+          btn.innerText = "✅";
+          setTimeout(() => { btn.innerText = "📋"; }, 1500);
+        }
+      });
+    });
+  }
+
+  function downloadSessionTxt(session) {
+    if (!session || !session.answers || session.answers.length === 0) {
+      alert("Bài thi này chưa có đáp án nào!");
+      return;
+    }
+    let content = `========================================================================\r\n`;
+    content += `BẢNG ĐÁP ÁN BÀI THI: ${session.title}\r\n`;
+    content += `Thời gian làm bài: ${session.createdAt || session.lastUpdated}\r\n`;
+    content += `Đường dẫn bài thi: ${session.url}\r\n`;
+    content += `Tổng số câu đã giải: ${session.answers.length} câu\r\n`;
+    content += `========================================================================\r\n\r\n`;
+
+    session.answers.forEach((ans, i) => {
+      content += `[${i + 1}] ${ans.questionNum || `Câu ${i + 1}`}\r\n`;
+      if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
+      content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer}\r\n`;
+      if (ans.confidence) content += `Độ tin cậy AI: ${ans.confidence}%\r\n`;
+      if (ans.transcript) content += `Phụ đề nghe được (Transcript): ${ans.transcript}\r\n`;
+      if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
+      content += `------------------------------------------------------------------------\r\n\r\n`;
+    });
+
+    content += `Xuất tự động bởi TOEIC AI Auto Solver\r\n`;
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+    a.href = url;
+    a.download = `${safeName}_Dap_An.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  if (btnExportAllTxt) {
+    btnExportAllTxt.addEventListener("click", async () => {
+      const data = await chrome.storage.local.get(["toeic_test_history"]);
+      const history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+      if (history.length > 0) {
+        downloadSessionTxt(history[0]);
+      } else {
+        alert("Chưa có lịch sử làm bài nào để xuất!");
+      }
+    });
+  }
+
+  if (btnClearAllHistory) {
+    btnClearAllHistory.addEventListener("click", async () => {
+      if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử đáp án các bài thi đã làm không?")) {
+        await chrome.storage.local.set({ toeic_test_history: [] });
+        loadAndRenderHistory();
+      }
+    });
+  }
+
+  // Khởi tạo hiển thị lịch sử khi mở popup
+  loadAndRenderHistory();
 });
