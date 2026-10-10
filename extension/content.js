@@ -1584,6 +1584,61 @@
   let _cachedExerciseDocs = null;
   let _cachedExerciseDocsTime = 0;
 
+  function getElementScreenRect(el) {
+    if (!el) return null;
+    try {
+      const rect = el.getBoundingClientRect();
+      let left = rect.left;
+      let top = rect.top;
+      let right = rect.right;
+      let bottom = rect.bottom;
+      const width = rect.width;
+      const height = rect.height;
+
+      let doc = el.ownerDocument;
+      let win = doc?.defaultView || window;
+
+      while (win && win !== window.top) {
+        try {
+          const frameEl = win.frameElement;
+          if (!frameEl) break;
+          const fRect = frameEl.getBoundingClientRect();
+          left += fRect.left;
+          top += fRect.top;
+          right = left + width;
+          bottom = top + height;
+          win = frameEl.ownerDocument?.defaultView || window;
+        } catch (e) {
+          break;
+        }
+      }
+
+      return { left, top, right, bottom, width, height };
+    } catch (e) {
+      return el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    }
+  }
+
+  function isElementOnScreen(el) {
+    if (!el) return false;
+    try {
+      const screenRect = getElementScreenRect(el);
+      if (!screenRect) return false;
+      const topWin = window.top || window;
+      const screenW = topWin.innerWidth || window.innerWidth || 1920;
+      const screenH = topWin.innerHeight || window.innerHeight || 1080;
+
+      // Loại bỏ các phần tử nằm ngoài khung hình nhìn thấy (ví dụ iframe preload tại left: -9999px)
+      if (screenRect.right <= 10 || screenRect.bottom <= 10) return false;
+      if (screenRect.left >= screenW - 10 || screenRect.top >= screenH - 10) return false;
+      if (screenRect.left <= -50 || screenRect.top <= -50) return false;
+
+      return true;
+    } catch (e) {
+      return true;
+    }
+  }
+
   function isIframeVisible(ifr) {
     if (!ifr) return false;
     try {
@@ -1593,6 +1648,13 @@
       const rect = ifr.getBoundingClientRect();
       if (rect.width <= 15 || rect.height <= 15) return false;
       if (ifr.offsetParent === null && style.position !== 'fixed') return false;
+
+      // Loại bỏ hoàn toàn iframe buffer/preload nằm ngoài khung nhìn
+      if (rect.right <= 10 || rect.bottom <= 10 || rect.left >= win.innerWidth - 10 || rect.top >= win.innerHeight - 10) return false;
+      if (rect.left <= -50 || rect.top <= -50) return false;
+
+      if (!isElementOnScreen(ifr)) return false;
+
       if (win !== window && win.frameElement) {
         return isIframeVisible(win.frameElement);
       }
@@ -2603,6 +2665,9 @@
         const docRadios = allDocRadios.filter(r => {
           if (isAiElement(r) || seenRadios.has(r)) return false;
 
+          // Bắt buộc radio phải nằm trên màn hình hiển thị thực tế (chống iframe preload/off-screen)
+          if (!isElementOnScreen(r)) return false;
+
           // 1. Radio có kích thước hiển thị trực tiếp
           const rect = r.getBoundingClientRect();
           if ((rect.width > 0 && rect.height > 0) || (r.offsetWidth > 0 && r.offsetHeight > 0)) {
@@ -2615,7 +2680,7 @@
 
           // 2. Radio custom style (opacity: 0 hoặc width: 0) nhưng nằm trong container hiển thị (tr, td, li, label, .choice, .option)
           const container = r.closest('tr, td, li, label, .choice, .option, table');
-          if (container && !isAiElement(container)) {
+          if (container && !isAiElement(container) && isElementOnScreen(container)) {
             const cr = container.getBoundingClientRect();
             if (cr.width > 0 && cr.height > 0) {
               const cStyle = win.getComputedStyle(container);
@@ -2632,10 +2697,10 @@
       } catch (e) {}
     }
 
-    // Sắp xếp các radio từ trên xuống dưới theo toạ độ Y
+    // Sắp xếp các radio từ trên xuống dưới theo toạ độ màn hình tuyệt đối Y
     radios.sort((a, b) => {
-      const ra = a.getBoundingClientRect();
-      const rb = b.getBoundingClientRect();
+      const ra = getElementScreenRect(a) || a.getBoundingClientRect();
+      const rb = getElementScreenRect(b) || b.getBoundingClientRect();
       const yDiff = ra.top - rb.top;
       if (Math.abs(yDiff) > 8) return yDiff;
       return ra.left - rb.left;
@@ -2656,18 +2721,18 @@
       return [allRadios];
     }
 
-    // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 35 - 37 of 200" -> ĐÚNG 3 CÂU)
+    // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 71 - 73 of 200" -> ĐÚNG 3 CÂU)
     const allDocs = getAllExerciseDocuments();
-    const fullText = allDocs.map(d => d.body?.innerText || "").join("\n");
-    const headerRange = fullText.match(/(?:Question|Câu)\s*(\d{1,3})\s*[-–—to\s]+(\d{1,3})/i);
+    const fullText = (getCurrentQuestionTitle() || "") + "\n" + allDocs.map(d => d.body?.innerText || "").join("\n");
+    const headerRange = fullText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})/i);
     if (headerRange) {
       const qStart = parseInt(headerRange[1], 10);
       const qEnd = parseInt(headerRange[2], 10);
       if (!isNaN(qStart) && !isNaN(qEnd) && qEnd >= qStart) {
         const expectedCount = qEnd - qStart + 1;
-        if (expectedCount >= 2 && expectedCount <= 5) {
-          const perQ = 4;
-          // Nếu có đúng expectedCount * 4 radio (hoặc bị dư do clone iframe)
+        if (expectedCount >= 1 && expectedCount <= 5) {
+          const perQ = (allRadios.length === expectedCount * 3) ? 3 : 4;
+          // Nếu có đúng expectedCount * perQ radio (hoặc bị dư do clone iframe)
           if (allRadios.length >= expectedCount * perQ) {
             const groups = [];
             for (let i = 0; i < expectedCount * perQ; i += perQ) {
@@ -3633,64 +3698,55 @@
         // 1. Tìm theo exact key trong _elementRefs
         optNode = window._elementRefs.get(`${qId}_opt_${letterIdx}`) || window._elementRefs.get(`${qId}_opt_${selectedIdx}`);
 
-        // 2. Nếu trang chỉ có 1 nhóm radio (chuẩn TOEIC Part 1, Part 2, Part 5 mỗi trang 1 câu)
-        if (!optNode && radioGroups.length === 1) {
-          const grp = radioGroups[0];
+        // 1b. Thử tìm với key fallback theo số thứ tự câu trên trang: radio_q_{i+1}_opt_{letterIdx}
+        if (!optNode) {
+          optNode = window._elementRefs.get(`radio_q_${i + 1}_opt_${letterIdx}`) || window._elementRefs.get(`radio_q_${i + 1}_opt_${selectedIdx}`);
+        }
+
+        // 2. Xác định nhóm radio của câu hỏi i trên màn hình (ĐẢM BẢO MỖI CÂU ĐƯỢC CHỌN ĐÚNG NHÓM RIÊNG)
+        let grp = null;
+        if (i < radioGroups.length) {
+          grp = radioGroups[i];
+        }
+
+        // Nếu sol có question_number (ví dụ câu 72), thử tìm nhóm tương ứng theo offset từ headerRange
+        const headerRangeMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})/i);
+        if (sol.question_number && headerRangeMatch) {
+          const qStart = parseInt(headerRangeMatch[1], 10);
+          const offset = sol.question_number - qStart;
+          if (offset >= 0 && offset < radioGroups.length) {
+            grp = radioGroups[offset];
+          }
+        }
+
+        if (!optNode && grp) {
           if (letterIdx >= 0 && letterIdx < grp.length) {
             optNode = grp[letterIdx];
+          } else if (grp.length > 0) {
+            optNode = grp[0];
           }
         }
 
-        // 3. Tìm theo nhóm câu hỏi radioGroups khi trang có nhiều nhóm
-        if (!optNode && radioGroups.length > 1) {
-          let targetGroupIdx = i;
-          const numInId = qId.match(/\d+/);
-          if (numInId) {
-            const parsedIdx = parseInt(numInId[0], 10) - 1;
-            if (parsedIdx >= 0 && parsedIdx < radioGroups.length) {
-              targetGroupIdx = parsedIdx;
-            }
-          }
-          if (targetGroupIdx < radioGroups.length) {
-            const grp = radioGroups[targetGroupIdx];
-            if (letterIdx >= 0 && letterIdx < grp.length) {
-              optNode = grp[letterIdx];
-            } else if (grp.length > 0) {
-              optNode = grp[0];
-            }
+        // 3. Fallback: Nếu không tìm thấy trong grp nhưng có allRadios, lấy radio trong cụm tương ứng của câu i
+        if (!optNode && allRadios.length >= (i + 1) * 4) {
+          const qChunk = allRadios.slice(i * 4, (i + 1) * 4);
+          if (letterIdx >= 0 && letterIdx < qChunk.length) {
+            optNode = qChunk[letterIdx];
           }
         }
 
-        // 4. Tìm trực tiếp theo thuộc tính ASP.NET / WebForms radio (id kết thúc bằng _0, _1, _2, _3 hoặc value="A", "B", "C", "D")
-        if (!optNode) {
-          const letter = letterMatch ? letterMatch[1].toUpperCase() : "";
-          const foundRadio = queryAllInDocs(`input[type="radio"]`).find(r => {
-            if (isAiElement(r)) return false;
-            const val = (r.value || "").toUpperCase().trim();
-            const id = (r.id || "").toLowerCase();
-            return val === letter || val === String(letterIdx) || id.endsWith(`_${letterIdx}`) || id.endsWith(`_${letter.toLowerCase()}`);
-          });
-          if (foundRadio) optNode = foundRadio;
-        }
-
-        // 5. Fallback: Nếu không có group, tính toạ độ radio theo index (i * 4 + letterIdx)
-        if (!optNode && allRadios.length > 0) {
-          const globalIdx = (i * 4) + (letterIdx >= 0 && letterIdx <= 3 ? letterIdx : 0);
-          if (globalIdx < allRadios.length) {
-            optNode = allRadios[globalIdx];
-          }
-        }
-
-        // 6. Fallback: Tìm theo text nhãn (A), (B), (C), (D)
-        if (!optNode && selectedVal) {
+        // 4. Fallback tìm theo nhãn (A), (B), (C), (D) TRONG PHẠM VI NHÓM grp CỦA CÂU NÀY (Tuyệt đối không tìm toàn trang)
+        if (!optNode && grp && selectedVal) {
           const letter = letterMatch ? letterMatch[1].toUpperCase() : "";
           if (letter) {
-            const label = queryAllInDocs('label, td, tr, li, span, div').find(el => {
-              if (isAiElement(el)) return false;
-              const t = el.innerText?.trim() || "";
-              return t === `(${letter})` || t === letter || t.startsWith(`(${letter})`);
-            });
-            if (label) optNode = label;
+            for (let rIdx = 0; rIdx < grp.length; rIdx++) {
+              const r = grp[rIdx];
+              const optText = extractRadioOptionText(r, rIdx);
+              if (optText.startsWith(`(${letter})`) || optText.startsWith(letter)) {
+                optNode = r;
+                break;
+              }
+            }
           }
         }
 
@@ -4422,7 +4478,7 @@
     const unansweredOnPage = [];
 
     radioGroups.forEach((g, idx) => {
-      const isChecked = g.some(r => r.checked);
+      const isChecked = g.some(r => isRadioSelected(r));
       if (!isChecked) {
         unansweredOnPage.push({ index: idx, group: g });
       }
@@ -4445,20 +4501,24 @@
     }
 
     // 3. Tìm nút "Item Review" / "Review" trên hệ thống bài thi để mở bảng danh sách câu hỏi tổng quan
-    const reviewBtn = queryAllInDocs("button, a, input, div[role='button'], span").find(el => {
-      if (isAiElement(el) || !isElementVisible(el)) return false;
-      if (isDangerousSubmitButton(el)) return false;
-      const t = (el.innerText || el.value || "").trim().toLowerCase();
-      const id = (el.id || "").toLowerCase();
-      const cl = (el.className || "").toString().toLowerCase();
-      return (
-        t === "item review" || t.includes("item review") ||
-        t === "review" || t === "review test" || t === "review answers" ||
-        t === "xem lại" || t === "danh sách câu hỏi" || t === "question list" ||
-        id.includes("btnreview") || id.includes("itemreview") ||
-        cl.includes("btnreview") || cl.includes("itemreview")
-      );
-    });
+    // CHÚ Ý: Trong phần thi Listening, hệ thống ETS không cho phép tua/nhảy bài, tuyệt đối không click Review làm tải lại bài!
+    const inListening = isCurrentInListeningSection();
+    let reviewBtn = null;
+    if (!inListening) {
+      reviewBtn = queryAllInDocs("button, a, input, div[role='button'], span").find(el => {
+        if (isAiElement(el) || !isElementVisible(el)) return false;
+        if (isDangerousSubmitButton(el)) return false;
+        const t = (el.innerText || el.value || "").trim().toLowerCase();
+        const id = (el.id || "").toLowerCase();
+        const cl = (el.className || "").toString().toLowerCase();
+        return (
+          t === "item review" || t.includes("item review") ||
+          t === "review test" || t === "review answers" ||
+          t === "xem lại" || t === "danh sách câu hỏi" || t === "question list" ||
+          id.includes("itemreview") || cl.includes("itemreview")
+        );
+      });
+    }
 
     if (reviewBtn) {
       console.log("[Review] 📋 Đang mở màn hình Item Review của bài thi:", reviewBtn);
