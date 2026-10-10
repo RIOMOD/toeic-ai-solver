@@ -2433,8 +2433,16 @@
         throw new Error(solveResp?.error || "Không nhận được lời giải từ Backend.");
       }
 
-      const solutions = solveResp.data;
+      const solutions = solveResp.data || solveResp.solutions || [];
+      const conversationTranscript = solveResp.conversation_transcript || solutions[0]?.conversation_transcript || "";
       console.log(`[Content] Nhận được ${solutions.length} lời giải:`, solutions);
+
+      // Gán question_number từ questionsData sang solutions nếu thiếu
+      solutions.forEach((sol, idx) => {
+        if (!sol.question_number && questionsData[idx]?.question_number) {
+          sol.question_number = questionsData[idx].question_number;
+        }
+      });
 
       // 5. Tự động click và điền đáp án
       await autoFillAnswers(solutions);
@@ -2448,8 +2456,8 @@
       // 5c. Tự động lưu lịch sử đáp án bài thi này
       await recordTestAnswers(solutions, questionsData);
 
-      // 6. Hiển thị bảng kết quả nổi trên trang
-      showResultsCard(solutions);
+      // 6. Hiển thị bảng kết quả nổi trên trang (transcript ở trên, đáp án ở dưới)
+      showResultsCard(solutions, questionsData, conversationTranscript);
       lastSolvedFingerprint = getQuestionFingerprint();
 
       if (solveText) {
@@ -2858,17 +2866,39 @@
     // A. Radio groups
     const radioGroups = groupRadioButtons();
     radioGroups.forEach((group, gIdx) => {
-      const qId = `radio_q_${gIdx + 1}`;
+      const qPrompt = getQuestionPromptForGroup(group, gIdx);
+
+      // 1. Tìm số câu chính xác từ prompt (VD: "38. What field..." -> 38)
+      let parsedNum = null;
+      const matchNum = qPrompt.match(/(?:^|\b)(\d{1,3})\s*[\.\:\)]/);
+      if (matchNum) {
+        const n = parseInt(matchNum[1], 10);
+        if (n >= 1 && n <= 200) parsedNum = n;
+      }
+
+      // 2. Nếu prompt chưa có số, dựa vào dải số ở tiêu đề trang (VD: Question 38 - 40 -> 38 + gIdx)
+      if (!parsedNum) {
+        const headerRange = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*[-–—to\s]+(\d{1,3})/i);
+        if (headerRange) {
+          const qStart = parseInt(headerRange[1], 10);
+          if (!isNaN(qStart) && qStart >= 1) parsedNum = qStart + gIdx;
+        }
+      }
+
+      const qNum = parsedNum || (gIdx + 1);
+      const qId = `q_${qNum}`;
       const options = [];
       group.forEach((r, oIdx) => {
         const optText = extractRadioOptionText(r, oIdx);
         options.push(optText);
         window._elementRefs.set(`${qId}_opt_${oIdx}`, r);
+        window._elementRefs.set(`radio_q_${gIdx + 1}_opt_${oIdx}`, r);
       });
 
       results.push({
         id: qId,
-        text: getQuestionPromptForGroup(group, gIdx),
+        question_number: qNum,
+        text: qPrompt.startsWith(`${qNum}.`) ? qPrompt : `${qNum}. ${qPrompt}`,
         options: options,
         target_type: "choice"
       });
@@ -3886,11 +3916,25 @@
       .replace(/'/g, "&#039;");
   }
 
-  function getCurrentQuestionTitle() {
+  function getCurrentQuestionTitle(solutions = [], questionsData = []) {
     const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
     const partMatch = allDocsText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
-    const rangeMatch = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]+(\d{1,3}))?(?:\s*of\s*\d+)?/i);
+    const part = partMatch ? partMatch[1] : "";
 
+    // 1. Nếu questionsData hoặc solutions có số câu cụ thể (VD: Câu 38, Câu 40)
+    const allNums = (questionsData.length > 0 ? questionsData : solutions)
+      .map(q => q.question_number || (typeof q.question_id === "string" ? parseInt(q.question_id.replace(/\D/g, ""), 10) : null))
+      .filter(n => n && n >= 1 && n <= 200);
+
+    if (allNums.length > 0) {
+      const minNum = Math.min(...allNums);
+      const maxNum = Math.max(...allNums);
+      const qText = (minNum !== maxNum) ? `Câu ${minNum} - ${maxNum}` : `Câu ${minNum}`;
+      return part ? `${part} • ${qText}` : qText;
+    }
+
+    // 2. Dựa vào dải số câu trên trang (VD: Question 38 - 40 of 200)
+    const rangeMatch = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]+(\d{1,3}))?(?:\s*of\s*\d+)?/i);
     let qText = "";
     if (rangeMatch) {
       const q1 = rangeMatch[1];
@@ -3898,23 +3942,39 @@
       qText = q2 ? `Câu ${q1} - ${q2}` : `Câu ${q1}`;
     }
 
-    const part = partMatch ? partMatch[1] : "";
     if (part && qText) return `${part} • ${qText}`;
     if (part) return part;
     if (qText) return qText;
-    return null;
+    return "AI Đã Giải Xong";
   }
 
-  function getQuestionItemTitle(index, sol, total) {
-    // 1. Nếu sol.question_id hoặc prompt có chứa số câu cụ thể (VD: "36. Why...", "q_36", "Câu 36")
-    const searchStr = `${sol?.prompt || ""} ${sol?.text || ""} ${sol?.question_id || ""}`;
-    const pMatch = searchStr.match(/(?:^|\b)(?:câu|q|question)?\s*(\d{1,3})\s*[\.\:\)]/i);
+  function getQuestionItemTitle(index, sol, total, questionsData = []) {
+    // 1. Số câu đã được gán trực tiếp từ quá trình scan
+    if (sol?.question_number && typeof sol.question_number === "number") {
+      return `Câu ${sol.question_number}`;
+    }
+    if (questionsData && questionsData[index]?.question_number) {
+      return `Câu ${questionsData[index].question_number}`;
+    }
+
+    // 2. Trích xuất từ question_id (VD: "q_38", "question_39")
+    const idMatch = String(sol?.question_id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
+    if (idMatch) {
+      const n = parseInt(idMatch[1], 10);
+      if (n >= 1 && n <= 200 && !String(sol?.question_id).startsWith("radio_q_")) {
+        return `Câu ${n}`;
+      }
+    }
+
+    // 3. Trích xuất từ prompt/text của sol hoặc questionsData
+    const textToCheck = `${sol?.prompt || ""} ${sol?.text || ""} ${questionsData[index]?.text || ""}`;
+    const pMatch = textToCheck.match(/(?:^|\b)(\d{1,3})\s*[\.\:\)]/);
     if (pMatch) {
       const n = parseInt(pMatch[1], 10);
       if (n >= 1 && n <= 200) return `Câu ${n}`;
     }
 
-    // 2. Dựa vào dải số câu trên trang (VD: Question 35 - 37 of 200)
+    // 4. Dựa vào dải số câu trên trang (VD: Question 38 - 40 of 200)
     const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
     const rangeMatch = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]+(\d{1,3}))?/i);
     if (rangeMatch) {
@@ -3922,13 +3982,6 @@
       if (!isNaN(startNum) && startNum >= 1 && startNum <= 200) {
         return `Câu ${startNum + index}`;
       }
-    }
-
-    // 3. Quét các tiêu đề đánh số trong bài
-    const numMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Z\?]/g));
-    if (numMatches.length > 0 && numMatches[index]) {
-      const n = parseInt(numMatches[index][1], 10);
-      if (n >= 1 && n <= 200) return `Câu ${n}`;
     }
 
     return `Câu ${index + 1}`;
@@ -4004,7 +4057,7 @@
     }
   }
 
-  function showResultsCard(solutions) {
+  function showResultsCard(solutions, questionsData = [], conversationTranscript = "") {
     if (isToolbarHidden) return; // Chế độ tàng hình chống cảnh báo -> Không hiện bảng kết quả
 
     // Nếu đang ở trang chủ, không hiển thị thẻ kết quả
@@ -4021,9 +4074,31 @@
       document.body.appendChild(card);
     }
 
-    const pageTitle = getCurrentQuestionTitle();
+    const pageTitle = getCurrentQuestionTitle(solutions, questionsData);
+
+    // 1. Đoạn hội thoại nghe được (Transcript) hiển thị ở TRÊN ĐẦU
+    const audioTranscript = (
+      conversationTranscript ||
+      solutions.find(s => s.conversation_transcript)?.conversation_transcript ||
+      solutions.map(s => s.transcript).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join("\n\n") ||
+      ""
+    ).trim();
+
+    const transcriptBoxHtml = audioTranscript ? `
+      <div class="ai-transcript-box" style="margin: 0 0 12px 0;">
+        <div class="ai-transcript-title">
+          <span class="ai-transcript-icon">🎧</span>
+          <span>Đoạn hội thoại nghe được (Transcript):</span>
+        </div>
+        <div class="ai-transcript-text" style="max-height: 150px; overflow-y: auto;">
+          ${escapeHtml(audioTranscript).replace(/\n/g, "<br>")}
+        </div>
+      </div>
+    ` : "";
+
+    // 2. Chi tiết đáp án từng câu ở PHÍA DƯỚI
     const itemsHtml = solutions.map((sol, i) => {
-      const qNumText = getQuestionItemTitle(i, sol, solutions.length);
+      const qNumText = getQuestionItemTitle(i, sol, solutions.length, questionsData);
       const conf = Math.round((sol.confidence || 0.98) * 100);
 
       return `
@@ -4047,12 +4122,13 @@
 
     card.innerHTML = `
       <div class="ai-card-header">
-        <div class="ai-card-title"><span>✨</span> ${escapeHtml(pageTitle || "AI Đã Giải Xong")} (${solutions.length} câu)</div>
+        <div class="ai-card-title"><span>✨</span> ${escapeHtml(pageTitle)} (${solutions.length} câu)</div>
         <div style="display: flex; align-items: center; gap: 6px;">
           <button class="ai-card-btn-history notranslate" id="ai-card-history-btn" title="Xem & tải toàn bộ lịch sử đáp án bài thi này (Phím tắt: Alt + L)">📜 Lịch Sử Bài</button>
           <button class="ai-card-close" id="ai-card-close-btn">&times;</button>
         </div>
       </div>
+      ${transcriptBoxHtml}
       <div class="ai-answers-list">
         ${itemsHtml}
       </div>

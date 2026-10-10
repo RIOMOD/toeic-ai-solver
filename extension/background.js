@@ -384,6 +384,7 @@ async function forwardToBackend(payload) {
       return {
         success: true,
         data: data.solutions,
+        conversation_transcript: data.conversation_transcript || "",
         count: data.count
       };
     } catch (error) {

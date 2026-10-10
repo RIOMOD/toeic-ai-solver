@@ -52,7 +52,7 @@ app.post("/api/solve", async (req, res) => {
 
     console.log(`[POST /api/solve] Nhận yêu cầu giải: ${questions?.length || 0} câu hỏi, kèm ảnh: ${Boolean(base64Image)}, kèm Audio: ${Boolean(audioBase64)}`);
 
-    const solutions = await solveQuestionsBatch({
+    const result = await solveQuestionsBatch({
       questions: questions || [],
       base64Image,
       pageText,
@@ -60,10 +60,15 @@ app.post("/api/solve", async (req, res) => {
       audioMime
     });
 
+    const solutions = Array.isArray(result) ? result : (result.solutions || []);
+    const conversationTranscript = result.conversation_transcript || solutions.conversation_transcript || solutions[0]?.conversation_transcript || "";
+
     return res.json({
       success: true,
       count: solutions.length,
-      solutions
+      conversation_transcript: conversationTranscript,
+      solutions,
+      data: solutions
     });
   } catch (error) {
     console.error("[POST /api/solve Lỗi]", error);

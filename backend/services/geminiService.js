@@ -55,33 +55,34 @@ INSTRUCTIONS & STRICT RULES:
      * Look closely at the actual photo on screen: inspect who is in the picture, what they are wearing, what actions they are performing (e.g. handing a document, standing behind a reception counter, typing on a computer), and what objects/furniture are present.
      * In 'matching_details', describe the visible picture details with precision.
 
-2. AUDIO TRANSCRIPTION & CROSS-VERIFICATION:
+2. AUDIO TRANSCRIPTION & CONVERSATION:
    - When audio is attached:
-     * Transcribe the spoken English statements in 'transcript' verbatim:
+     * For TOEIC Part 3 & 4 (Conversations / Talks): Transcribe the FULL conversation or speech accurately into 'conversation_transcript':
+       "Man: Good morning, Dr. Waheed...
+Woman: Thank you. I'm excited to attend the economics conference...
+Man: ..."
+     * For Part 1 (Photographs) or Part 2 (Question-Response): Transcribe the spoken question and options into 'conversation_transcript':
        "(A) [Full spoken statement A]
 (B) [Full spoken statement B]
 (C) [Full spoken statement C]
 (D) [Full spoken statement D]"
-     * SANITY CHECK / CROSS-CHECK: If the audio statements talk about something completely absent from the photo (e.g. audio mentions "hanging up a painting" or "cutting grass" while the photo shows women at an office reception desk handing papers), DETECT THE CONTEXT MISMATCH. Explain the mismatch in 'matching_details' and choose the option that most plausibly aligns with the visual evidence.
-   - If audio is not attached or unavailable:
-     * Analyze the visible image and formulate high-probability standard TOEIC statements in 'transcript' that accurately describe what is happening in the picture, then select the best matching answer.
+     * SANITY CHECK / CROSS-CHECK: If the audio statements talk about something completely absent from the photo, DETECT THE CONTEXT MISMATCH.
 
 3. ANSWER SELECTION:
    - 'question_id': MUST exactly match the id from the question input (e.g. "${finalQuestions[0]?.id || 'radio_q_1'}").
    - 'selected_index': Integer 0 for A, 1 for B, 2 for C, 3 for D.
    - 'selected_value': Must begin with the letter: "(A)", "(B)", "(C)", or "(D)".
-   - 'explanation': Clear, concise explanation in Vietnamese explaining WHY the answer is correct based on the image and spoken text.
+   - 'explanation': Clear, concise explanation in Vietnamese explaining WHY the answer is correct based on the conversation and image.
    - 'confidence': Number between 0.0 and 1.0 (e.g. 0.98).
 
 STRICT JSON SCHEMA:
 {
+  "conversation_transcript": "string containing the full verbatim conversation or spoken statements from the audio",
   "solutions": [
     {
       "question_id": "string",
       "selected_index": 0,
-      "selected_value": "(A)",
-      "transcript": "string",
-      "matching_details": "string",
+      "selected_value": "(A) Economics",
       "explanation": "string in Vietnamese",
       "confidence": 0.98
     }
@@ -142,10 +143,13 @@ STRICT JSON SCHEMA:
       const response = await result.response;
       let text = response.text().trim();
 
-      const solutions = safeParseSolutions(text);
-      
+      const parsedRes = safeParseSolutions(text);
+      const solutions = Array.isArray(parsedRes) ? parsedRes : (parsedRes.solutions || []);
+      const conversationTranscript = parsedRes.conversation_transcript || solutions.conversation_transcript || "";
+      solutions.conversation_transcript = conversationTranscript;
+
       console.log(`[GeminiService] Đã giải thành công ${solutions.length} câu hỏi với model ${modelName}!`);
-      return solutions;
+      return { conversation_transcript: conversationTranscript, solutions };
     } catch (err) {
       console.warn(`[GeminiService] Model ${modelName} gặp sự cố: ${err.message}. Đang thử model tiếp theo...`);
       lastError = err;
@@ -160,12 +164,29 @@ STRICT JSON SCHEMA:
  */
 function safeParseSolutions(rawText) {
   let text = rawText.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "");
+  let convTranscript = "";
+
   try {
     const parsed = JSON.parse(text);
-    return parsed.solutions || parsed.answers || (Array.isArray(parsed) ? parsed : [parsed]);
+    convTranscript = parsed.conversation_transcript || parsed.transcript || parsed.audio_transcript || "";
+    let list = parsed.solutions || parsed.answers || (Array.isArray(parsed) ? parsed : [parsed]);
+    if (convTranscript && Array.isArray(list)) {
+      list.forEach(item => {
+        if (!item.conversation_transcript) item.conversation_transcript = convTranscript;
+      });
+    }
+    list.conversation_transcript = convTranscript;
+    return { conversation_transcript: convTranscript, solutions: list };
   } catch (parseErr) {
     console.warn(`[GeminiService] JSON.parse gặp lỗi (${parseErr.message}), thử phục hồi bằng Regex...`);
     const solutions = [];
+
+    // Tìm conversation_transcript từ text nếu có
+    const transMatch = text.match(/"conversation_transcript"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+    if (transMatch) {
+      convTranscript = transMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+    }
+
     const blockRegex = /\{[^{}]*"question_id"[^{}]*\}/g;
     let match;
     while ((match = blockRegex.exec(text)) !== null) {
@@ -178,7 +199,6 @@ function safeParseSolutions(rawText) {
         const sIdx = match[0].match(/"selected_index"\s*:\s*(\d+)/)?.[1];
         const sVal = match[0].match(/"selected_value"\s*:\s*"([^"]+)"/)?.[1];
         const trans = match[0].match(/"transcript"\s*:\s*"([^"]*)"/)?.[1];
-        const matchDet = match[0].match(/"matching_details"\s*:\s*"([^"]*)"/)?.[1];
         const exp = match[0].match(/"explanation"\s*:\s*"([^"]*)"/)?.[1];
         const conf = match[0].match(/"confidence"\s*:\s*([0-9.]+)/)?.[1];
         if (qId) {
@@ -187,7 +207,6 @@ function safeParseSolutions(rawText) {
             selected_index: sIdx ? parseInt(sIdx, 10) : 0,
             selected_value: sVal || "",
             transcript: trans || "",
-            matching_details: matchDet || "",
             explanation: exp || "",
             confidence: conf ? parseFloat(conf) : 0.95
           });
@@ -196,7 +215,11 @@ function safeParseSolutions(rawText) {
     }
     if (solutions.length > 0) {
       console.log(`[GeminiService] ✅ Đã phục hồi thành công ${solutions.length} câu từ chuỗi JSON!`);
-      return solutions;
+      if (convTranscript) {
+        solutions.forEach(s => { s.conversation_transcript = convTranscript; });
+      }
+      solutions.conversation_transcript = convTranscript;
+      return { conversation_transcript: convTranscript, solutions };
     }
     throw parseErr;
   }
