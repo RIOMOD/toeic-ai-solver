@@ -170,14 +170,16 @@
 }
 
 /* Floating Results Card & Review Modal */
-#ai-solver-card, #ai-review-modal {
+#ai-solver-card, #ai-review-modal, #ai-history-modal {
   position: fixed;
   top: 110px;
   right: 20px;
   z-index: 2147483647 !important;
   width: 440px;
-  max-width: calc(100vw - 40px);
-  max-height: 560px;
+  min-width: 320px;
+  max-width: calc(100vw - 30px);
+  min-height: 200px;
+  max-height: calc(100vh - 40px);
   background: #0f172a;
   color: #f8fafc;
   border: 1px solid #334155;
@@ -188,6 +190,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  resize: both;
   animation: aiSolverFadeIn 0.2s ease-out;
 }
 
@@ -203,6 +206,12 @@
   border-bottom: 1px solid #1e293b;
   padding-bottom: 10px;
   margin-bottom: 12px;
+  cursor: grab;
+  user-select: none;
+}
+
+.ai-card-header:active {
+  cursor: grabbing;
 }
 
 .ai-card-title {
@@ -229,12 +238,44 @@
 
 .ai-answers-list {
   overflow-y: auto;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 470px;
+  max-height: none;
   padding-right: 4px;
+}
+
+.ai-card-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 4px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.ai-card-resize-handle::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-right: 2.5px solid #38bdf8;
+  border-bottom: 2.5px solid #38bdf8;
+  opacity: 0.85;
+  display: block;
+}
+
+.ai-card-resize-handle:hover::after {
+  opacity: 1;
+  border-color: #7dd3fc;
 }
 
 .ai-answers-list::-webkit-scrollbar {

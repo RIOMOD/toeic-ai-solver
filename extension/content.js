@@ -394,17 +394,23 @@
     }
   }
 
-  // Cài đặt kéo thả (Draggable) và nhấp chuột mượt mà cho Toolbar & Bubble
+  // Cài đặt kéo thả (Draggable) linh hoạt cho Toolbar, Bubble, Card kết quả và Modal
   function setupDraggable(element) {
+    if (!element || element._draggableInit) return;
+    element._draggableInit = true;
+
     let isMouseDown = false;
     let isDragging = false;
     let startX = 0, startY = 0;
     let initialLeft = 0, initialTop = 0;
 
-    const dragHandle = element.querySelector("#ai-drag-handle") || element;
+    element.addEventListener("mousedown", (e) => {
+      // Chỉ kích hoạt kéo thả khi nhấn vào header (.ai-card-header, #ai-drag-handle) hoặc bubble
+      const isHandle = Boolean(e.target.closest("#ai-drag-handle, .ai-card-header, #ai-solver-bubble"));
+      if (!isHandle) return;
+      // Không kéo thả khi click các nút bấm, input, resize handle
+      if (e.target.closest("button, input, select, a, .ai-card-resize-handle")) return;
 
-    dragHandle.addEventListener("mousedown", (e) => {
-      if (e.target.closest("button") && !element.id.includes("bubble")) return;
       isMouseDown = true;
       isDragging = false;
       startX = e.clientX;
@@ -418,13 +424,13 @@
       if (!isMouseDown) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
-      if (!isDragging && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
         isDragging = true;
         element.style.setProperty("right", "auto", "important");
       }
       if (isDragging) {
-        let newLeft = Math.max(10, Math.min(window.innerWidth - element.offsetWidth - 10, initialLeft + dx));
-        let newTop = Math.max(10, Math.min(window.innerHeight - element.offsetHeight - 10, initialTop + dy));
+        let newLeft = Math.max(5, Math.min(window.innerWidth - element.offsetWidth - 5, initialLeft + dx));
+        let newTop = Math.max(5, Math.min(window.innerHeight - element.offsetHeight - 5, initialTop + dy));
         element.style.setProperty("left", `${newLeft}px`, "important");
         element.style.setProperty("top", `${newTop}px`, "important");
       }
@@ -439,6 +445,56 @@
       // Nếu là bubble và người dùng chỉ nhấp chuột (không phải kéo thả) -> Mở rộng thanh công cụ ngay lập tức!
       if (element.id === "ai-solver-bubble" && !wasDragging) {
         setToolbarMinimized(false);
+      }
+    });
+  }
+
+  // Cài đặt kéo dãn / mở rộng (Resizable) mượt mà cho bảng kết quả và modal
+  function setupResizable(element) {
+    if (!element) return;
+    let handle = element.querySelector(".ai-card-resize-handle");
+    if (!handle) {
+      handle = document.createElement("div");
+      handle.className = "ai-card-resize-handle";
+      handle.title = "Kéo để kéo dài / mở rộng bảng đáp án";
+      element.appendChild(handle);
+    }
+
+    if (element._resizableInit) return;
+    element._resizableInit = true;
+
+    let isResizing = false;
+    let startX = 0, startY = 0;
+    let startW = 0, startH = 0;
+
+    element.addEventListener("mousedown", (e) => {
+      const resizeHandle = e.target.closest(".ai-card-resize-handle");
+      if (!resizeHandle) return;
+      e.preventDefault();
+      e.stopPropagation();
+      isResizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startW = element.offsetWidth;
+      startH = element.offsetHeight;
+      document.body.style.cursor = "nwse-resize";
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isResizing) return;
+      const dw = e.clientX - startX;
+      const dh = e.clientY - startY;
+      const newW = Math.max(300, Math.min(window.innerWidth - element.offsetLeft - 10, startW + dw));
+      const newH = Math.max(180, Math.min(window.innerHeight - element.offsetTop - 10, startH + dh));
+      element.style.setProperty("width", `${newW}px`, "important");
+      element.style.setProperty("height", `${newH}px`, "important");
+      element.style.setProperty("max-height", `${newH}px`, "important");
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.cursor = "";
       }
     });
   }
@@ -4065,6 +4121,8 @@
     `;
     const closeBtn = card.querySelector("#ai-btn-card-close");
     if (closeBtn) closeBtn.onclick = () => card.remove();
+    setupDraggable(card);
+    setupResizable(card);
     setTimeout(() => {
       const c = document.getElementById("ai-solver-card");
       if (c && c.innerHTML.includes("Chưa lấy được lời giải")) {
@@ -4101,6 +4159,9 @@
         <div style="font-size: 11.5px; color: #64748b;">Đang tải âm thanh bài nghe của câu này, phân tích hình ảnh và phụ đề...</div>
       </div>
     `;
+
+    setupDraggable(card);
+    setupResizable(card);
 
     const closeBtn = card.querySelector("#ai-btn-card-close");
     if (closeBtn) {
@@ -4190,6 +4251,9 @@
       </div>
       ${listenFooterHtml}
     `;
+
+    setupDraggable(card);
+    setupResizable(card);
 
     document.getElementById("ai-card-close-btn").addEventListener("click", () => {
       card.remove();
@@ -4962,6 +5026,9 @@
         showHistoryModal();
       }
     });
+
+    setupDraggable(modal);
+    setupResizable(modal);
   }
 
   function showReviewModal(data) {
@@ -4983,6 +5050,8 @@
           <div style="font-size: 14px; color: #38bdf8; font-weight: 600;">${escapeHtml(data.message)}</div>
         </div>
       `;
+      setupDraggable(modal);
+      setupResizable(modal);
       return;
     }
 
@@ -5043,6 +5112,9 @@
         </div>
       </div>
     `;
+
+    setupDraggable(modal);
+    setupResizable(modal);
 
     document.getElementById("ai-btn-re-review")?.addEventListener("click", () => {
       runReviewAndCheckCompletion();
