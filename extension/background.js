@@ -207,6 +207,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // async
   }
 
+  // H. Tự động lưu file đáp án bài thi vào thư mục Downloads/TOEIC_History trên máy tính người dùng
+  if (request.action === "save_history_local_file") {
+    try {
+      const filename = request.filename || `TOEIC_History/Dap_An_${Date.now()}.txt`;
+      const dataUrl = "data:text/plain;charset=utf-8," + encodeURIComponent(request.content || "");
+      chrome.downloads.download({
+        url: dataUrl,
+        filename: filename,
+        saveAs: false,
+        conflictAction: "overwrite"
+      }, (downloadId) => {
+        if (chrome.runtime.lastError) {
+          console.warn("[Background] Lỗi lưu file local qua chrome.downloads:", chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          console.log(`[Background] 💾 Đã lưu đáp án vào thư mục máy tính: Downloads/${filename} (ID: ${downloadId})`);
+          sendResponse({ success: true, downloadId });
+        }
+      });
+    } catch (e) {
+      sendResponse({ success: false, error: e.message });
+    }
+    return true; // async
+  }
+
+  // I. Tự động đẩy lịch sử đáp án bài thi lên Máy chủ (Server)
+  if (request.action === "sync_history_to_server") {
+    (async () => {
+      try {
+        const storage = await chrome.storage.local.get(["backendUrl"]);
+        const backendUrl = storage.backendUrl || "https://toeic-ai-solver.onrender.com";
+        const resp = await fetch(`${backendUrl}/api/history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request.payload)
+        });
+        const resJson = await resp.json();
+        console.log("[Background] ☁️ Đã đẩy lịch sử bài thi lên Server thành công:", resJson);
+        sendResponse({ success: true, data: resJson });
+      } catch (err) {
+        console.warn("[Background] Lỗi đẩy lịch sử lên server:", err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return true; // async
+  }
+
   // F. Heartbeat ping từ Content Script để duy trì 24/24
   if (request.action === "ping_keep_alive") {
     sendResponse({ success: true, timestamp: Date.now() });

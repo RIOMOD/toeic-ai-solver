@@ -10,7 +10,8 @@
     "scripting",
     "webRequest",
     "alarms",
-    "power"
+    "power",
+    "downloads"
   ],
   "host_permissions": [
     "http://localhost:5000/*",

@@ -4516,17 +4516,28 @@
 
       await chrome.storage.local.set({ toeic_test_history: history });
       console.log(`[History] 📝 Đã lưu lịch sử: ${session.answers.length} câu hỏi cho bài thi [${session.title}]`);
+
+      // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend)
+      chrome.runtime.sendMessage({
+        action: "sync_history_to_server",
+        payload: session
+      }).catch(() => {});
+
+      // 2. TỰ ĐỘNG LƯU VÀO THƯ MỤC TRÊN MÁY TÍNH (Downloads/TOEIC_History/)
+      const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+      const txtContent = generateSessionTxtContent(session);
+      chrome.runtime.sendMessage({
+        action: "save_history_local_file",
+        filename: `TOEIC_History/${safeName}.txt`,
+        content: txtContent
+      }).catch(() => {});
     } catch (err) {
       console.warn("[History] Lỗi khi lưu lịch sử đáp án:", err);
     }
   }
 
-  function exportSessionToTxt(session) {
-    if (!session || !session.answers || session.answers.length === 0) {
-      showAiToast("⚠️ Chưa có đáp án nào để xuất file!");
-      return;
-    }
-
+  function generateSessionTxtContent(session) {
+    if (!session || !session.answers) return "";
     let content = `========================================================================\r\n`;
     content += `BẢNG ĐÁP ÁN BÀI THI: ${session.title}\r\n`;
     content += `Thời gian làm bài: ${session.createdAt || session.lastUpdated}\r\n`;
@@ -4544,8 +4555,17 @@
       content += `------------------------------------------------------------------------\r\n\r\n`;
     });
 
-    content += `Xuất tự động bởi TOEIC AI Auto Solver\r\n`;
+    content += `Được tự động lưu vào máy tính & đồng bộ lên Server bởi TOEIC AI Solver\r\n`;
+    return content;
+  }
 
+  function exportSessionToTxt(session) {
+    if (!session || !session.answers || session.answers.length === 0) {
+      showAiToast("⚠️ Chưa có đáp án nào để xuất file!");
+      return;
+    }
+
+    const content = generateSessionTxtContent(session);
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
