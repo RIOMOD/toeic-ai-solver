@@ -1583,6 +1583,25 @@
    */
   let _cachedExerciseDocs = null;
   let _cachedExerciseDocsTime = 0;
+
+  function isIframeVisible(ifr) {
+    if (!ifr) return false;
+    try {
+      const win = ifr.ownerDocument?.defaultView || window;
+      const style = win.getComputedStyle(ifr);
+      if (!style || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+      const rect = ifr.getBoundingClientRect();
+      if (rect.width <= 15 || rect.height <= 15) return false;
+      if (ifr.offsetParent === null && style.position !== 'fixed') return false;
+      if (win !== window && win.frameElement) {
+        return isIframeVisible(win.frameElement);
+      }
+      return true;
+    } catch (e) {
+      return true;
+    }
+  }
+
   function getAllExerciseDocuments() {
     const now = Date.now();
     if (_cachedExerciseDocs && (now - _cachedExerciseDocsTime < 1500)) {
@@ -1597,6 +1616,8 @@
             const ifr = iframes[i];
             const src = (ifr.src || "").toLowerCase();
             if (src.includes("googlesyndication") || src.includes("doubleclick") || src.includes("googleads")) continue;
+            // CHỐNG QUÉT TRÙNG LẶP: Bỏ qua hoàn toàn các iframe ẩn, clone hoặc preload
+            if (!isIframeVisible(ifr)) continue;
             const innerDoc = ifr.contentDocument || ifr.contentWindow?.document;
             if (innerDoc && !docs.includes(innerDoc)) {
               docs.push(innerDoc);
@@ -2561,19 +2582,25 @@
   function getVisibleTestRadios() {
     const docs = getAllExerciseDocuments();
     const radios = [];
+    const seenRadios = new Set();
 
     for (const doc of docs) {
       try {
+        const win = doc.defaultView || window;
+        if (win !== window && win.frameElement && !isIframeVisible(win.frameElement)) {
+          continue; // Bỏ qua radio thuộc iframe đang bị ẩn hoặc clone
+        }
+
         const allDocRadios = Array.from(doc.querySelectorAll('input[type="radio"]'));
         const docRadios = allDocRadios.filter(r => {
-          if (isAiElement(r)) return false;
-          const win = r.ownerDocument?.defaultView || window;
+          if (isAiElement(r) || seenRadios.has(r)) return false;
 
           // 1. Radio có kích thước hiển thị trực tiếp
           const rect = r.getBoundingClientRect();
           if ((rect.width > 0 && rect.height > 0) || (r.offsetWidth > 0 && r.offsetHeight > 0)) {
             const style = win.getComputedStyle(r);
-            if (style && style.visibility !== 'hidden' && style.display !== 'none') {
+            if (style && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0') {
+              seenRadios.add(r);
               return true;
             }
           }
@@ -2584,7 +2611,8 @@
             const cr = container.getBoundingClientRect();
             if (cr.width > 0 && cr.height > 0) {
               const cStyle = win.getComputedStyle(container);
-              if (cStyle && cStyle.display !== 'none' && cStyle.visibility !== 'hidden') {
+              if (cStyle && cStyle.display !== 'none' && cStyle.visibility !== 'hidden' && cStyle.opacity !== '0') {
+                seenRadios.add(r);
                 return true;
               }
             }
@@ -2620,6 +2648,30 @@
       return [allRadios];
     }
 
+    // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 35 - 37 of 200" -> ĐÚNG 3 CÂU)
+    const allDocs = getAllExerciseDocuments();
+    const fullText = allDocs.map(d => d.body?.innerText || "").join("\n");
+    const headerRange = fullText.match(/(?:Question|Câu)\s*(\d{1,3})\s*[-–—to\s]+(\d{1,3})/i);
+    if (headerRange) {
+      const qStart = parseInt(headerRange[1], 10);
+      const qEnd = parseInt(headerRange[2], 10);
+      if (!isNaN(qStart) && !isNaN(qEnd) && qEnd >= qStart) {
+        const expectedCount = qEnd - qStart + 1;
+        if (expectedCount >= 2 && expectedCount <= 5) {
+          const perQ = 4;
+          // Nếu có đúng expectedCount * 4 radio (hoặc bị dư do clone iframe)
+          if (allRadios.length >= expectedCount * perQ) {
+            const groups = [];
+            for (let i = 0; i < expectedCount * perQ; i += perQ) {
+              groups.push(allRadios.slice(i, i + perQ));
+            }
+            console.log(`[Content] 🎯 Nhận diện chuẩn xác ${expectedCount} câu hỏi từ dải tiêu đề "${headerRange[0]}":`, groups.length);
+            return groups;
+          }
+        }
+      }
+    }
+
     // 1. Phân nhóm theo thuộc tính 'name' của radio nếu có các name rõ ràng (mỗi nhóm từ 2 đến 5 radio)
     const byName = {};
     allRadios.forEach(r => {
@@ -2638,8 +2690,6 @@
     }
 
     // 2. Nhóm theo số câu hỏi đánh số trong văn bản trang (vd: "30. Why...", "31. What...", "32. What...")
-    const allDocs = getAllExerciseDocuments();
-    const fullText = allDocs.map(d => d.body?.innerText || "").join("\n");
     const numberedMatches = Array.from(fullText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Z\?]/g));
     const numQuestions = numberedMatches.length;
 
@@ -3021,7 +3071,27 @@
       }
     }
 
-    return results;
+    // DEDUPLICATE: Loại bỏ triệt để câu hỏi trùng lặp do cloned / mirrored / preloaded iframes
+    const seenSignatures = new Set();
+    const uniqueResults = [];
+    for (const q of results) {
+      const optClean = (q.options || [])
+        .map(o => (o || "").toLowerCase().replace(/^[a-d\(\)\.\s]+/g, "").trim())
+        .filter(o => o.length > 2);
+
+      const sig = optClean.length >= 2
+        ? optClean.join("||")
+        : ((q.text || "").replace(/\s+/g, " ").trim().toLowerCase());
+
+      if (sig && seenSignatures.has(sig)) {
+        console.warn(`[Content] ⚠️ Bỏ qua câu hỏi trùng lặp do iframe clone:`, q.id, sig);
+        continue;
+      }
+      if (sig) seenSignatures.add(sig);
+      uniqueResults.push(q);
+    }
+
+    return uniqueResults;
   }
 
 
@@ -3819,13 +3889,49 @@
   function getCurrentQuestionTitle() {
     const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
     const partMatch = allDocsText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
-    const qMatch = allDocsText.match(/(?:Question|Câu)\s*(\d+)(?:\s*of\s*\d+)?/i);
+    const rangeMatch = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]+(\d{1,3}))?(?:\s*of\s*\d+)?/i);
+
+    let qText = "";
+    if (rangeMatch) {
+      const q1 = rangeMatch[1];
+      const q2 = rangeMatch[2];
+      qText = q2 ? `Câu ${q1} - ${q2}` : `Câu ${q1}`;
+    }
+
     const part = partMatch ? partMatch[1] : "";
-    const q = qMatch ? `Câu ${qMatch[1]}` : "";
-    if (part && q) return `${part} • ${q}`;
+    if (part && qText) return `${part} • ${qText}`;
     if (part) return part;
-    if (q) return q;
+    if (qText) return qText;
     return null;
+  }
+
+  function getQuestionItemTitle(index, sol, total) {
+    // 1. Nếu sol.question_id hoặc prompt có chứa số câu cụ thể (VD: "36. Why...", "q_36", "Câu 36")
+    const searchStr = `${sol?.prompt || ""} ${sol?.text || ""} ${sol?.question_id || ""}`;
+    const pMatch = searchStr.match(/(?:^|\b)(?:câu|q|question)?\s*(\d{1,3})\s*[\.\:\)]/i);
+    if (pMatch) {
+      const n = parseInt(pMatch[1], 10);
+      if (n >= 1 && n <= 200) return `Câu ${n}`;
+    }
+
+    // 2. Dựa vào dải số câu trên trang (VD: Question 35 - 37 of 200)
+    const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+    const rangeMatch = allDocsText.match(/(?:Question|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]+(\d{1,3}))?/i);
+    if (rangeMatch) {
+      const startNum = parseInt(rangeMatch[1], 10);
+      if (!isNaN(startNum) && startNum >= 1 && startNum <= 200) {
+        return `Câu ${startNum + index}`;
+      }
+    }
+
+    // 3. Quét các tiêu đề đánh số trong bài
+    const numMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Z\?]/g));
+    if (numMatches.length > 0 && numMatches[index]) {
+      const n = parseInt(numMatches[index][1], 10);
+      if (n >= 1 && n <= 200) return `Câu ${n}`;
+    }
+
+    return `Câu ${index + 1}`;
   }
 
   function showErrorCard(errorMsg) {
@@ -3917,34 +4023,17 @@
 
     const pageTitle = getCurrentQuestionTitle();
     const itemsHtml = solutions.map((sol, i) => {
-      const qNumText = pageTitle ? `${pageTitle}` : (sol.question_id || `Câu ${i + 1}`);
-      const transcriptHtml = sol.transcript ? `
-        <div class="ai-transcript-box">
-          <div class="ai-transcript-title">
-            <span class="ai-transcript-icon">🎧</span>
-            <span>Phụ đề nghe được (Transcript & Subtitles):</span>
-          </div>
-          <div class="ai-transcript-text">${escapeHtml(sol.transcript).replace(/\n/g, "<br>")}</div>
-        </div>
-      ` : "";
-
-      const matchingHtml = sol.matching_details ? `
-        <div class="ai-matching-box">
-          <div class="ai-matching-title">
-            <span class="ai-matching-icon">🔍</span>
-            <span>So khớp hình ảnh & chi tiết bài làm:</span>
-          </div>
-          <div class="ai-matching-text">${escapeHtml(sol.matching_details).replace(/\n/g, "<br>")}</div>
-        </div>
-      ` : "";
+      const qNumText = getQuestionItemTitle(i, sol, solutions.length);
+      const conf = Math.round((sol.confidence || 0.98) * 100);
 
       return `
         <div class="ai-answer-item">
-          <div class="ai-ans-num">${escapeHtml(qNumText)} • Độ tin cậy: ${Math.round((sol.confidence || 0.98) * 100)}%</div>
-          ${transcriptHtml}
-          ${matchingHtml}
+          <div class="ai-ans-num">
+            <span>${escapeHtml(qNumText)}</span>
+            <span style="font-size: 11px; opacity: 0.85;">Độ tin cậy: ${conf}%</span>
+          </div>
           <div class="ai-ans-val">👉 <strong>Đáp án chọn:</strong> <span class="ai-ans-val-text">${escapeHtml(sol.selected_value || "N/A")}</span></div>
-          <div class="ai-ans-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(sol.explanation || "")}</div>
+          ${sol.explanation ? `<div class="ai-ans-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(sol.explanation)}</div>` : ""}
         </div>
       `;
     }).join("");
