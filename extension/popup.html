@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>AI English Solver - Cài Đặt</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      width: 350px;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
+      user-select: none;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .badge-status {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      border: 1px solid #22c55e;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .badge-status:hover {
+      opacity: 0.85;
+    }
+    .badge-status.disconnected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border-color: #ef4444;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 14px 0 6px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    .url-input-wrap {
+      display: flex;
+      gap: 6px;
+    }
+    input[type="text"] {
+      flex: 1;
+      padding: 8px 10px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f8fafc;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: #38bdf8;
+    }
+    .btn-sm {
+      padding: 7px 11px;
+      background: #1e293b;
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-sm:hover {
+      background: #0284c7;
+      color: #fff;
+    }
+    .setting-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    .setting-card:hover {
+      border-color: #475569;
+    }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .setting-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .setting-desc {
+      font-size: 10.5px;
+      color: #94a3b8;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+    .bubble-mode-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .bubble-opt-btn {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 7px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .bubble-opt-btn:hover {
+      border-color: #38bdf8;
+      color: #f8fafc;
+    }
+    .bubble-opt-btn.active {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      font-weight: 700;
+    }
+    .info-notice {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #e2e8f0;
+      display: flex;
+      gap: 8px;
+    }
+    .info-notice strong {
+      color: #38bdf8;
+    }
+    .hotkey-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+    }
+    .hotkey-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      row-gap: 5px;
+      font-size: 11px;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+    kbd {
+      background: #0f172a;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid #475569;
+      color: #38bdf8;
+      font-weight: bold;
+      font-size: 10.5px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">
+      <span>⚙️</span> Cài Đặt AI Solver
+    </div>
+    <div id="backendBadge" class="badge-status" title="Nhấp để kiểm tra lại kết nối">
+      Đang kiểm tra...
+    </div>
+  </div>
+
+  <!-- Backend Connection Settings -->
+  <div class="section-title">
+    <span>🌐</span> Kết Nối Máy Chủ AI
+  </div>
+  <div class="form-group">
+    <div class="url-input-wrap">
+      <input type="text" id="backendUrl" value="http://localhost:5000" placeholder="http://localhost:5000">
+      <button id="btnCheckHealth" class="btn-sm" title="Kiểm tra kết nối">Kiểm tra</button>
+    </div>
+  </div>
+
+  <!-- Automation Settings -->
+  <div class="section-title">
+    <span>⚡</span> Cấu Hình Chạy Tự Động
+  </div>
+
+  <div class="setting-card">
+    <label class="setting-row" for="chkRun247">
+      <span class="setting-label">
+        <span style="color: #22c55e;">🛡️</span> Chạy liên tục 24/24
+      </span>
+      <input type="checkbox" id="chkRun247" checked style="accent-color: #22c55e; width: 16px; height: 16px;">
+    </label>
+    <div class="setting-desc">
+      Chống ngủ Windows & Chrome, tự phục hồi khi đơ/treo, giải liên tục các bài thi.
+    </div>
+  </div>
+
+  <div class="setting-card">
+    <label class="setting-row" for="chkAutoNext">
+      <span class="setting-label">
+        <span style="color: #38bdf8;">🔄</span> Tự động Next câu liên tục
+      </span>
+      <input type="checkbox" id="chkAutoNext" style="accent-color: #38bdf8; width: 16px; height: 16px;">
+    </label>
+    <div class="setting-desc">
+      Tự động bấm Next sang câu tiếp theo ngay sau khi giải xong đáp án.
+    </div>
+  </div>
+
+  <!-- On-Screen Floating Bubble Settings -->
+  <div class="section-title">
+    <span>🔮</span> Bong Bóng Nổi Trên Màn Hình
+  </div>
+
+  <div class="setting-card">
+    <div class="setting-row">
+      <span class="setting-label">
+        <span>👁️</span> Hiển thị Bong bóng trên trang web
+      </span>
+      <button id="btnToggleToolbar" class="btn-sm" style="padding: 4px 10px; font-size: 10.5px;">
+        Đang hiện
+      </button>
+    </div>
+    <div class="setting-desc">
+      Bấm <kbd>Alt + Z</kbd> hoặc <kbd>Alt + H</kbd> để ẩn/hiện tàng hình chống hệ thống thi giám sát.
+    </div>
+
+    <div style="margin-top: 8px; font-size: 11px; color: #94a3b8; font-weight: 600;">
+      Kiểu hiển thị trên màn hình:
+    </div>
+    <div class="bubble-mode-options">
+      <button id="btnModeBubble" class="bubble-opt-btn" title="Hiển thị bong bóng tròn nhỏ gọn">
+        <span>🤖</span> Bong bóng tròn
+      </button>
+      <button id="btnModeToolbar" class="bubble-opt-btn active" title="Hiển thị thanh công cụ mở rộng">
+        <span>⚡</span> Thanh công cụ
+      </button>
+    </div>
+  </div>
+
+  <!-- Operational Notice: How it works on screen -->
+  <div class="info-notice">
+    <span style="font-size: 15px;">💡</span>
+    <div>
+      <strong>Thao tác giải bài trực tiếp:</strong> Toàn bộ hoạt động (<em>Quét & Giải bài</em>, <em>Siêu Auto</em>, <em>Dò bài</em>, <em>Next</em>) đều nằm trực tiếp trên <strong>Bong bóng AI nổi trên màn hình bài thi</strong>.
+    </div>
+  </div>
+
+  <!-- Hotkeys Guide -->
+  <div class="hotkey-box">
+    <div style="font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase;">
+      ⌨️ Phím tắt nhanh khi làm bài
+    </div>
+    <div class="hotkey-grid">
+      <span>Ẩn/Hiện Tàng Hình:</span> <kbd>Alt + Z</kbd> <kbd style="margin-left: 2px;">Alt + H</kbd>
+      <span>Quét & Giải câu này:</span> <kbd>Alt + S</kbd>
+      <span>Next câu tiếp theo:</span> <kbd>Alt + N</kbd>
+      <span>Bật / Tắt Tự Động Next:</span> <kbd>Alt + A</kbd>
+      <span>Bật / Tắt Siêu Auto:</span> <kbd>Alt + M</kbd>
+      <span>Đóng nhanh bảng đáp án:</span> <kbd>Esc</kbd>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

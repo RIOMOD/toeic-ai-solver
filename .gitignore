@@ -1,0 +1,25 @@
+# Environment & Secrets
+.env
+backend/.env
+*.env.local
+
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Python Virtual Environments & Cache
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Chrome debug profile & temporary browser caches
+chrome_debug_profile/
+*.log
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

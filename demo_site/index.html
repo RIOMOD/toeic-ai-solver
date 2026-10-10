@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trang Thử Nghiệm Bài Tập Tiếng Anh (English Practice Test)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #22c55e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 760px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    header h1 {
+      font-size: 26px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .question-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+    }
+
+    .question-card:hover {
+      border-color: #475569;
+    }
+
+    .question-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 20px;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .question-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* Options list */
+    .options-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .option-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .option-item:hover {
+      background: #1e293b;
+      border-color: var(--accent);
+    }
+
+    .option-item input[type="radio"] {
+      margin-right: 12px;
+      accent-color: var(--accent);
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Text Input Fill */
+    .input-field {
+      width: 100%;
+      padding: 12px 16px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent);
+    }
+
+    /* Audio section */
+    .audio-box {
+      margin: 14px 0;
+      padding: 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    audio {
+      width: 100%;
+      height: 40px;
+    }
+
+    /* Image preview */
+    .image-preview {
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 30px;
+    }
+
+    .btn-submit {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      font-weight: 700;
+      font-size: 16px;
+      padding: 14px 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .btn-submit:hover {
+      background: var(--accent-hover);
+    }
+
+    #result-box {
+      display: none;
+      margin-top: 24px;
+      padding: 20px;
+      border-radius: 8px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid var(--success);
+      color: var(--success);
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>🎯 Bộ Đề Thử Nghiệm Bot Giải Tiếng Anh Tự Động</h1>
+      <p>Trang web mô phỏng đầy đủ 4 dạng câu hỏi: Ngữ pháp, Nghe hiểu (Audio), Điền từ, và Hình ảnh</p>
+    </header>
+
+    <form id="quiz-form">
+      <!-- Question 1: Ngữ pháp -->
+      <div class="question-card" data-question-id="q1">
+        <span class="question-badge">Câu 1 • Ngữ pháp (Grammar)</span>
+        <h3 class="question-title">Yesterday, Sarah and her friends ______ to the National Museum.</h3>
+        <div class="options-group">
+          <label class="option-item">
+            <input type="radio" name="q1" value="A"> A. go
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q1" value="B"> B. went
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q1" value="C"> C. has gone
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q1" value="D"> D. are going
+          </label>
+        </div>
+      </div>
+
+      <!-- Question 2: Điền từ vào chỗ trống -->
+      <div class="question-card" data-question-id="q2">
+        <span class="question-badge">Câu 2 • Điền từ (Fill in the blank)</span>
+        <h3 class="question-title">Please fill in the correct preposition: "She is very interested ______ learning foreign languages."</h3>
+        <input type="text" class="input-field" placeholder="Nhập từ cần điền vào đây..." autocomplete="off">
+      </div>
+
+      <!-- Question 3: Bài nghe hiểu (Listening Audio) -->
+      <div class="question-card" data-question-id="q3">
+        <span class="question-badge">Câu 3 • Nghe hiểu (Listening Comprehension)</span>
+        <h3 class="question-title">Nghe đoạn ghi âm sau và chọn sở thích của người nói:</h3>
+        <div class="audio-box">
+          <audio controls src="audio_sample.wav"></audio>
+        </div>
+        <div class="options-group">
+          <label class="option-item">
+            <input type="radio" name="q3" value="A"> A. Playing football
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q3" value="B"> B. Reading science fiction books
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q3" value="C"> C. Cooking Vietnamese food
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q3" value="D"> D. Traveling to Europe
+          </label>
+        </div>
+      </div>
+
+      <!-- Question 4: Hình ảnh (Visual Image) -->
+      <div class="question-card" data-question-id="q4">
+        <span class="question-badge">Câu 4 • Từ vựng qua hình ảnh (Image)</span>
+        <h3 class="question-title">Look at the clock in the picture. What time is it?</h3>
+        <!-- SVG Đồng hồ chỉ 3 giờ đúng -->
+        <svg class="image-preview" viewBox="0 0 200 200" style="background:#0f172a; height:180px;">
+          <circle cx="100" cy="100" r="80" stroke="#38bdf8" stroke-width="4" fill="#1e293b" />
+          <circle cx="100" cy="100" r="5" fill="#38bdf8" />
+          <!-- Kim giờ chỉ số 3 -->
+          <line x1="100" y1="100" x2="150" y2="100" stroke="#f8fafc" stroke-width="4" stroke-linecap="round"/>
+          <!-- Kim phút chỉ số 12 -->
+          <line x1="100" y1="100" x2="100" y2="40" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+          <text x="94" y="35" fill="#94a3b8" font-size="12">12</text>
+          <text x="165" y="105" fill="#94a3b8" font-size="12">3</text>
+          <text x="96" y="172" fill="#94a3b8" font-size="12">6</text>
+          <text x="25" y="105" fill="#94a3b8" font-size="12">9</text>
+        </svg>
+        <div class="options-group">
+          <label class="option-item">
+            <input type="radio" name="q4" value="A"> A. It's twelve o'clock.
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q4" value="B"> B. It's half past three.
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q4" value="C"> C. It's three o'clock.
+          </label>
+          <label class="option-item">
+            <input type="radio" name="q4" value="D"> D. It's a quarter to nine.
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-submit" onclick="submitQuiz()">Nộp Bài (Submit)</button>
+      </div>
+    </form>
+
+    <div id="result-box">
+      🎉 Kết quả: <span id="score-text"></span>
+    </div>
+  </div>
+
+  <script>
+    function submitQuiz() {
+      let score = 0;
+      const total = 4;
+
+      // Q1 check: B (went)
+      const q1 = document.querySelector('input[name="q1"]:checked');
+      if (q1 && q1.value === 'B') score++;
+
+      // Q2 check: in
+      const q2 = document.querySelector('[data-question-id="q2"] input').value.trim().toLowerCase();
+      if (q2 === 'in') score++;
+
+      // Q3 check: B (Reading books)
+      const q3 = document.querySelector('input[name="q3"]:checked');
+      if (q3 && q3.value === 'B') score++;
+
+      // Q4 check: C (three o'clock)
+      const q4 = document.querySelector('input[name="q4"]:checked');
+      if (q4 && q4.value === 'C') score++;
+
+      const res = document.getElementById('result-box');
+      res.style.display = 'block';
+      document.getElementById('score-text').innerText = `${score} / ${total} điểm (${Math.round(score/total*100)}%)`;
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

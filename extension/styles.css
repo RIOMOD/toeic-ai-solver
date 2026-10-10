@@ -1,0 +1,500 @@
+/* Floating Widget Toolbar - Luôn nổi lên trên cùng với z-index tối đa, kích thước cố định dạng viên nang (pill capsule) */
+#ai-solver-toolbar {
+  position: fixed !important;
+  top: 75px;
+  right: 20px;
+  z-index: 2147483647 !important;
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: fit-content !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 4px 10px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-radius: 50px !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  line-height: normal !important;
+  user-select: none !important;
+  overflow: visible !important;
+}
+
+#ai-solver-toolbar *,
+#ai-solver-toolbar *::before,
+#ai-solver-toolbar *::after {
+  box-sizing: border-box !important;
+}
+
+#ai-solver-toolbar::before,
+#ai-solver-toolbar::after,
+#ai-solver-toolbar *::before,
+#ai-solver-toolbar *::after {
+  content: none !important;
+}
+
+#ai-solver-toolbar span {
+  display: inline !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+}
+
+.ai-toolbar-drag-handle {
+  cursor: grab !important;
+  color: #64748b !important;
+  font-size: 14px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  user-select: none !important;
+  transition: color 0.2s !important;
+  background: transparent !important;
+  border: none !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+.ai-toolbar-drag-handle:hover {
+  color: #38bdf8 !important;
+}
+
+.ai-toolbar-drag-handle:active {
+  cursor: grabbing !important;
+}
+
+.ai-toolbar-btn {
+  border: none !important;
+  border-radius: 30px !important;
+  padding: 6px 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  transition: all 0.2s ease !important;
+}
+
+#ai-btn-solve {
+  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%) !important;
+  color: #0f172a !important;
+}
+#ai-btn-solve:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.5) !important;
+}
+
+#ai-btn-autonext {
+  background: #1e293b !important;
+  color: #38bdf8 !important;
+  border: 1px solid #38bdf8 !important;
+}
+#ai-btn-autonext:hover {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}
+#ai-btn-autonext.active {
+  background: #22c55e !important;
+  color: #0f172a !important;
+  border-color: #22c55e !important;
+  animation: pulseGreen 1.5s infinite !important;
+}
+
+#ai-btn-masterauto {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #c084fc !important;
+}
+#ai-btn-masterauto:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 15px rgba(219, 39, 119, 0.5) !important;
+}
+#ai-btn-masterauto.active {
+  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%) !important;
+  color: #0f172a !important;
+  border-color: #22c55e !important;
+  animation: pulseGreen 1.2s infinite !important;
+}
+
+#ai-btn-review {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%) !important;
+  color: #0f172a !important;
+}
+#ai-btn-review:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5) !important;
+}
+
+#ai-btn-next {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+#ai-btn-next:hover {
+  background: #475569 !important;
+}
+
+@keyframes pulseGreen {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* Floating Results Card & Review Modal */
+#ai-solver-card, #ai-review-modal {
+  position: fixed;
+  top: 110px;
+  right: 20px;
+  z-index: 2147483647 !important;
+  width: 440px;
+  max-width: calc(100vw - 40px);
+  max-height: 560px;
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.7);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: aiSolverFadeIn 0.2s ease-out;
+}
+
+@keyframes aiSolverFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ai-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-card-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.ai-card-close:hover {
+  color: #ffffff;
+}
+
+.ai-answers-list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 470px;
+  padding-right: 4px;
+}
+
+.ai-answers-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ai-answers-list::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.ai-answer-item {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 12px 14px;
+  border-left: 3px solid #38bdf8;
+}
+
+.ai-ans-num {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #38bdf8;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Transcript & Subtitle Box */
+.ai-transcript-box {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 8px 0;
+}
+
+.ai-transcript-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.ai-transcript-text {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.5;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 6px 8px;
+  border-radius: 4px;
+  white-space: pre-line;
+}
+
+/* Visual Cross-Referencing Box */
+.ai-matching-box {
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 8px 0;
+}
+
+.ai-matching-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+
+.ai-matching-text {
+  font-size: 11.5px;
+  color: #f1f5f9;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+.ai-ans-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #22c55e;
+  margin-bottom: 4px;
+}
+
+.ai-ans-val-text {
+  color: #4ade80;
+}
+
+.ai-ans-exp {
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+/* Phân cách và nút điều khiển Toolbar */
+.ai-toolbar-divider {
+  width: 1px !important;
+  min-width: 1px !important;
+  max-width: 1px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  max-height: 20px !important;
+  background: #334155 !important;
+  margin: 0 3px !important;
+  padding: 0 !important;
+  border: none !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.ai-toolbar-icon-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  width: 26px !important;
+  min-width: 26px !important;
+  max-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+.ai-toolbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #f8fafc !important;
+}
+
+.ai-toolbar-icon-btn.close:hover {
+  background: rgba(239, 68, 68, 0.3) !important;
+  color: #f87171 !important;
+}
+
+/* Floating Mini Bubble (Khi thu nhỏ) */
+#ai-solver-bubble {
+  position: fixed !important;
+  top: 75px;
+  right: 20px;
+  z-index: 2147483647 !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%) !important;
+  color: #0f172a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  box-shadow: 0 8px 25px rgba(56, 189, 248, 0.45) !important;
+  border: 2px solid rgba(255, 255, 255, 0.85) !important;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  user-select: none !important;
+}
+
+#ai-solver-bubble:hover {
+  transform: scale(1.12);
+  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.7);
+}
+
+#ai-solver-bubble:active {
+  transform: scale(0.95);
+}
+
+#ai-solver-bubble.auto-running {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border-color: #6ee7b7 !important;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important;
+  animation: pulseGreen 1.5s infinite !important;
+}
+
+#ai-solver-bubble.solving {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+  border-color: #fde68a !important;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.8) !important;
+  animation: pulseAmber 1.2s infinite !important;
+}
+
+#ai-solver-bubble.autonext-running {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.8) !important;
+}
+
+@keyframes pulseAmber {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Toast thông báo phím tắt */
+#ai-solver-toast {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 2147483647 !important;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #38bdf8;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  animation: aiToastFadeInOut 2.6s ease forwards;
+}
+
+#ai-solver-toast kbd {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11.5px;
+  font-family: monospace;
+  color: #38bdf8;
+  font-weight: bold;
+}
+
+@keyframes aiToastFadeInOut {
+  0% { opacity: 0; transform: translateY(15px); }
+  12% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(15px); }
+}
+
+.ai-hidden {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+
