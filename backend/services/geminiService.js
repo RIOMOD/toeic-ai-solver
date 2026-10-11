@@ -13,6 +13,8 @@ const genAI = new GoogleGenerativeAI(apiKey || "");
 // Danh sách model ưu tiên cao nhất: gemini-3.5-flash (tư duy logic đa phương thức cao nhất), sau đó là các bản flash-lite
 const CANDIDATE_MODELS = [
   process.env.GEMINI_MODEL,
+  "gemini-3-flash-preview",
+  "gemini-3.7-flash",
   "gemini-3.8-flash",
   "gemini-3.5-flash",
   "gemini-flash-latest"
@@ -193,11 +195,6 @@ STRICT JSON OUTPUT FORMAT:
       } catch (err) {
         console.warn(`[GeminiService] Model ${modelName} gặp sự cố: ${err.message}. Đang thử model tiếp theo...`);
         lastError = err;
-        if (err.message && err.message.includes("429")) {
-          // Nếu bị 429 quota trên key này, chuyển sang key tiếp theo ngay lập tức
-          console.warn(`[GeminiService] ⚠️ Key hiện tại đã hết hạn mức (429 Quota), thử key tiếp theo...`);
-          break;
-        }
       }
     }
   }
