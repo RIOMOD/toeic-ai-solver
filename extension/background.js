@@ -310,7 +310,18 @@ if (chrome.commands && chrome.commands.onCommand) {
 
 async function forwardToBackend(payload) {
   const storage = await chrome.storage.local.get(["backendUrl", "lastCapturedAudio"]);
-  const backendUrl = (storage.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+  let backendUrl = (storage.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+
+  // Tự động kiểm tra: Nếu local backend (http://localhost:5000) đang mở thì ưu tiên dùng ngay để đạt tốc độ tức thì và ổn định 100%
+  if (backendUrl !== "http://localhost:5000") {
+    try {
+      const localCheck = await fetch("http://localhost:5000/api/health", { method: "GET", signal: AbortSignal.timeout(800) });
+      if (localCheck.ok) {
+        console.log("[Background] ⚡ Phát hiện Local Backend đang chạy, tự động ưu tiên kết nối http://localhost:5000!");
+        backendUrl = "http://localhost:5000";
+      }
+    } catch (e) {}
+  }
 
   // 1. Nếu payload có audio mới, cập nhật vào bộ nhớ đệm
   if (payload.audioBase64) {
@@ -323,7 +334,10 @@ async function forwardToBackend(payload) {
   } else if (payload.audioUrl) {
     try {
       console.log(`[Background] 📥 Đang tải audioUrl trực tiếp bằng Service Worker: ${payload.audioUrl}`);
-      const res = await fetch(payload.audioUrl);
+      const audioController = new AbortController();
+      const audioTimeout = setTimeout(() => audioController.abort(), 8000);
+      const res = await fetch(payload.audioUrl, { signal: audioController.signal });
+      clearTimeout(audioTimeout);
       if (res.ok) {
         const blob = await res.blob();
         const mime = blob.type || (payload.audioUrl.toLowerCase().includes(".wav") ? "audio/wav" : "audio/mp3");
@@ -360,12 +374,12 @@ async function forwardToBackend(payload) {
   console.log(`[Background] 🚀 Gửi bài tập tới Backend: ${backendUrl}/api/solve (Có Audio: ${Boolean(payload.audioBase64)})`);
 
   let lastError = null;
-  const maxRetries = 3;
+  const maxRetries = 2;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      const timeoutId = setTimeout(() => controller.abort(), 50000);
 
       const response = await fetch(`${backendUrl}/api/solve`, {
         method: "POST",

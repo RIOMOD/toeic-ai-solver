@@ -12,12 +12,11 @@ const genAI = new GoogleGenerativeAI(apiKey || "");
 
 // Danh sách model ưu tiên cao nhất: gemini-3.5-flash (tư duy logic đa phương thức cao nhất), sau đó là các bản flash-lite
 const CANDIDATE_MODELS = [
+  process.env.GEMINI_MODEL,
+  "gemini-3.8-flash",
   "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-flash-lite-latest"
-];
+  "gemini-flash-latest"
+].filter(Boolean);
 
 /**
  * Giải bài tập tiếng Anh bằng Google Gemini Flash API đa phương thức
@@ -161,38 +160,49 @@ STRICT JSON OUTPUT FORMAT:
 
   contents.push(prompt);
 
-  // Thử lần lượt các model Flash để đảm bảo luôn phản hồi thành công và đạt độ chính xác cao nhất
+  const rawKeys = (process.env.GEMINI_API_KEY || "").split(",").map(k => k.trim()).filter(Boolean);
+  const keysToUse = rawKeys.length > 0 ? rawKeys : [apiKey || ""];
+
+  // Thử lần lượt các key và model Flash để đảm bảo luôn phản hồi thành công và đạt độ chính xác cao nhất
   let lastError = null;
-  for (const modelName of CANDIDATE_MODELS) {
-    try {
-      console.log(`[GeminiService] 🚀 Đang gọi model trí tuệ cao: ${modelName}...`);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1,
-          maxOutputTokens: 6000
+  for (const currentKey of keysToUse) {
+    const client = new GoogleGenerativeAI(currentKey);
+    for (const modelName of CANDIDATE_MODELS) {
+      try {
+        console.log(`[GeminiService] 🚀 Đang gọi model trí tuệ cao: ${modelName}...`);
+        const model = client.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1,
+            maxOutputTokens: 6000
+          }
+        });
+
+        const result = await model.generateContent(contents);
+        const response = await result.response;
+        let text = response.text().trim();
+
+        const parsedRes = safeParseSolutions(text);
+        const solutions = Array.isArray(parsedRes) ? parsedRes : (parsedRes.solutions || []);
+        const conversationTranscript = parsedRes.conversation_transcript || solutions.conversation_transcript || "";
+        solutions.conversation_transcript = conversationTranscript;
+
+        console.log(`[GeminiService] ✅ Đã giải thành công ${solutions.length} câu hỏi với model ${modelName}!`);
+        return { conversation_transcript: conversationTranscript, solutions };
+      } catch (err) {
+        console.warn(`[GeminiService] Model ${modelName} gặp sự cố: ${err.message}. Đang thử model tiếp theo...`);
+        lastError = err;
+        if (err.message && err.message.includes("429")) {
+          // Nếu bị 429 quota trên key này, chuyển sang key tiếp theo ngay lập tức
+          console.warn(`[GeminiService] ⚠️ Key hiện tại đã hết hạn mức (429 Quota), thử key tiếp theo...`);
+          break;
         }
-      });
-
-      const result = await model.generateContent(contents);
-      const response = await result.response;
-      let text = response.text().trim();
-
-      const parsedRes = safeParseSolutions(text);
-      const solutions = Array.isArray(parsedRes) ? parsedRes : (parsedRes.solutions || []);
-      const conversationTranscript = parsedRes.conversation_transcript || solutions.conversation_transcript || "";
-      solutions.conversation_transcript = conversationTranscript;
-
-      console.log(`[GeminiService] ✅ Đã giải thành công ${solutions.length} câu hỏi với model ${modelName}!`);
-      return { conversation_transcript: conversationTranscript, solutions };
-    } catch (err) {
-      console.warn(`[GeminiService] Model ${modelName} gặp sự cố: ${err.message}. Đang thử model tiếp theo...`);
-      lastError = err;
+      }
     }
   }
 
-  throw new Error(`Tất cả các model Gemini đều không phản hồi: ${lastError?.message || "Lỗi không xác định"}`);
+  throw new Error(`Tất cả các model/key Gemini đều không phản hồi: ${lastError?.message || "Lỗi không xác định"}`);
 }
 
 /**

@@ -850,11 +850,6 @@
         return;
       }
 
-      // Nếu đang trong tiến trình giải câu, nhường toàn bộ CPU
-      if (isSolvingCurrentQuestion) {
-        return;
-      }
-
       // 0. Luôn ưu tiên phát hiện và nhấn nút chuyển tiếp Section (Start Section) TRƯỚC HẾT!
       if (findAndClickSectionTransitionButton()) {
         console.log("[AutoWatcher] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
@@ -864,16 +859,20 @@
         return;
       }
 
-      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 15 giây, tự động giải phóng!
+      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 25 giây, tự động giải phóng!
       if (isSolvingCurrentQuestion) {
         if (!window._solvingStartTime) {
           window._solvingStartTime = Date.now();
-        } else if (Date.now() - window._solvingStartTime > 15000) {
-          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >15s, tự động giải phóng khóa để tiếp tục!");
+        } else if (Date.now() - window._solvingStartTime > 25000) {
+          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >25s, tự động giải phóng khóa để tiếp tục!");
           isSolvingCurrentQuestion = false;
           window._solvingStartTime = null;
           const sTxt = document.getElementById("ai-solve-text");
           if (sTxt) sTxt.innerText = "Giải Câu Này";
+          const stuckCard = document.getElementById("ai-solver-card");
+          if (stuckCard) stuckCard.remove();
+          const rModal = document.getElementById("ai-review-modal");
+          if (rModal) rModal.remove();
         }
         return;
       }
@@ -1087,13 +1086,13 @@
         if (isListening || hasQuestions) {
           console.log("[AutoNext] ⏳ Đang ở bài thi Listening tự chuyển câu. Đang đợi hệ thống tự chuyển sang câu tiếp theo...");
           const solveText = document.getElementById("ai-solve-text");
-          if (solveText) solveText.innerText = "Chờ câu mới...";
+          if (solveText && solveText.innerText !== "Đang Giải...") solveText.innerText = "Chờ câu mới...";
           const nextText = document.getElementById("ai-autonext-text");
           if (nextText) nextText.innerText = "Chờ chuyển câu...";
 
           let transitioned = false;
           const startWait = Date.now();
-          while (isAutoNextRunning && Date.now() - startWait < 90000) {
+          while (isAutoNextRunning && Date.now() - startWait < 180000) {
             await sleep(1000);
 
             // 1. Kiểm tra nếu có nút chuyển tiếp Section
@@ -1123,13 +1122,20 @@
           if (transitioned) {
             continue; // Tiếp tục vòng lặp để giải câu mới ngay lập tức!
           }
+
+          if (isListening) {
+            console.log("[AutoNext] 🎧 Vẫn đang trong phần thi Listening (âm thanh có thể đang chạy). Tiếp tục vòng lặp chờ...");
+            continue;
+          }
         }
 
         // Chỉ khi không phải listening và thực sự hết câu hỏi thì mới dừng để nộp bài
-        console.log("[AutoNext] 🔍 Không còn nút Next, mở Item Review để kiểm tra...");
-        stopAutoNextLoop();
-        await runReviewAndCheckCompletion(true);
-        break;
+        if (!isListening) {
+          console.log("[AutoNext] 🔍 Không còn nút Next trong phần Reading, mở Item Review để kiểm tra...");
+          stopAutoNextLoop();
+          await runReviewAndCheckCompletion(true);
+          break;
+        }
       }
     }
   }
@@ -1627,14 +1633,15 @@
     try {
       const screenRect = getElementScreenRect(el);
       if (!screenRect) return false;
-      const topWin = window.top || window;
-      const screenW = topWin.innerWidth || window.innerWidth || 1920;
-      const screenH = topWin.innerHeight || window.innerHeight || 1080;
 
-      // Loại bỏ các phần tử nằm ngoài khung hình nhìn thấy (ví dụ iframe preload tại left: -9999px)
-      if (screenRect.right <= 10 || screenRect.bottom <= 10) return false;
-      if (screenRect.left >= screenW - 10 || screenRect.top >= screenH - 10) return false;
-      if (screenRect.left <= -50 || screenRect.top <= -50) return false;
+      // Loại bỏ các phần tử nằm ngoài khung hình ẩn do CSS hack (ví dụ left: -9999px, top: -9999px)
+      if (screenRect.right <= -50 || screenRect.bottom <= -50) return false;
+      if (screenRect.left <= -500 || screenRect.top <= -500) return false;
+
+      // Nếu phần tử có kích thước 0x0
+      if (screenRect.width <= 0 && screenRect.height <= 0) {
+        if (!el.offsetWidth && !el.offsetHeight) return false;
+      }
 
       return true;
     } catch (e) {
@@ -2462,19 +2469,22 @@
         console.log("[Content] ⚡ Bỏ qua chụp ảnh màn hình (Part 2 thuần audio) để tăng tốc độ!");
       }
 
-      // 4. Gửi sang Backend Node.js
-      const solveResp = await chrome.runtime.sendMessage({
-        action: "solve_exercise",
-        payload: {
-          questions: questionsData,
-          base64Image: screenshotBase64,
-          pageText: combinedPageText,
-          audioUrl: audioUrl,
-          audioBase64: audioData ? audioData.base64 : null,
-          audioMime: audioData ? audioData.mime : "audio/mp3",
-          allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
-        }
-      });
+      // 4. Gửi sang Backend Node.js với timeout bảo vệ 55 giây
+      const solveResp = await Promise.race([
+        chrome.runtime.sendMessage({
+          action: "solve_exercise",
+          payload: {
+            questions: questionsData,
+            base64Image: screenshotBase64,
+            pageText: combinedPageText,
+            audioUrl: audioUrl,
+            audioBase64: audioData ? audioData.base64 : null,
+            audioMime: audioData ? audioData.mime : "audio/mp3",
+            allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
+          }
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 55s)")), 55000))
+      ]);
 
       if (!solveResp || !solveResp.success) {
         throw new Error(solveResp?.error || "Không nhận được lời giải từ Backend.");
@@ -4523,32 +4533,43 @@
     console.log("[Review] 🔍 Bắt đầu dò lại bài thi...");
     showReviewModal({ loading: true, message: "Đang rà soát và dò lại các câu hỏi trong bài thi..." });
 
-    // 1. Quét các câu hỏi trắc nghiệm trên màn hình hiện tại
-    const radioGroups = groupRadioButtons();
-    const unansweredOnPage = [];
-
-    radioGroups.forEach((g, idx) => {
-      const isChecked = g.some(r => isRadioSelected(r));
-      if (!isChecked) {
-        unansweredOnPage.push({ index: idx, group: g });
-      }
-    });
-
-    // 2. Nếu màn hình hiện tại có câu chưa làm:
-    if (unansweredOnPage.length > 0) {
-      console.log(`[Review] ⚠️ Phát hiện ${unansweredOnPage.length} câu chưa chọn đáp án trên trang hiện tại! Tự động giải ngay...`);
-      showReviewModal({
-        loading: true,
-        message: `Phát hiện ${unansweredOnPage.length} câu chưa làm trên màn hình này. Đang tự động giải bù...`
-      });
-
-      try {
-        await triggerScanAndSolve();
-        await sleep(600);
-      } catch (e) {
-        console.warn("[Review] Lỗi khi giải bù câu trên trang:", e);
+    // 0. Nếu đang trong tiến trình giải câu, đợi nó hoàn thành trước
+    if (isSolvingCurrentQuestion) {
+      console.log("[Review] ⏳ AI đang trong tiến trình giải câu, đợi hoàn tất...");
+      showReviewModal({ loading: true, message: "AI đang phân tích câu hỏi trên màn hình, vui lòng chờ..." });
+      const waitSolve = Date.now();
+      while (isSolvingCurrentQuestion && Date.now() - waitSolve < 15000) {
+        await sleep(500);
       }
     }
+
+    try {
+      // 1. Quét các câu hỏi trắc nghiệm trên màn hình hiện tại
+      const radioGroups = groupRadioButtons();
+      const unansweredOnPage = [];
+
+      radioGroups.forEach((g, idx) => {
+        const isChecked = g.some(r => isRadioSelected(r));
+        if (!isChecked) {
+          unansweredOnPage.push({ index: idx, group: g });
+        }
+      });
+
+      // 2. Nếu màn hình hiện tại có câu chưa làm và không đang giải:
+      if (unansweredOnPage.length > 0 && !isSolvingCurrentQuestion) {
+        console.log(`[Review] ⚠️ Phát hiện ${unansweredOnPage.length} câu chưa chọn đáp án trên trang hiện tại! Tự động giải ngay...`);
+        showReviewModal({
+          loading: true,
+          message: `Phát hiện ${unansweredOnPage.length} câu chưa làm trên màn hình này. Đang tự động giải bù...`
+        });
+
+        try {
+          await triggerScanAndSolve();
+          await sleep(600);
+        } catch (e) {
+          console.warn("[Review] Lỗi khi giải bù câu trên trang:", e);
+        }
+      }
 
     // 3. Tìm nút "Item Review" / "Review" trên hệ thống bài thi để mở bảng danh sách câu hỏi tổng quan
     // CHÚ Ý: Trong phần thi Listening, hệ thống ETS không cho phép tua/nhảy bài, tuyệt đối không click Review làm tải lại bài!
@@ -4639,6 +4660,16 @@
           await submitCompletedTest();
         }
       }
+    }
+    } catch (reviewErr) {
+      console.warn("[Review] Lỗi trong quá trình rà soát:", reviewErr);
+      showReviewModal({
+        loading: false,
+        total: 0,
+        answeredCount: 0,
+        unansweredCount: 0,
+        message: "⚠️ Đã xảy ra lỗi khi dò bài: " + (reviewErr.message || "")
+      });
     }
   }
 
