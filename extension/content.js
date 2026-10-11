@@ -31,72 +31,19 @@
     document.addEventListener("visibilitychange", blockEvent, true);
     document.addEventListener("webkitvisibilitychange", blockEvent, true);
 
-    // 2. Tiêm lá chắn vào Main World (Ngữ cảnh JavaScript trực tiếp của trang web)
+    // 2. Kích hoạt Main World Shield (Tuân thủ CSP 100%, không dùng inline script)
     try {
-      const script = document.createElement("script");
-      script.textContent = `
-        (function() {
-          if (window.__w_f_guard) return;
-          window.__w_f_guard = 1;
-
-          // A. Luôn giữ trạng thái Tab đang hoạt động & Trang có Focus 24/7
-          try {
-            Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
-            Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
-            Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible', configurable: true });
-            document.hasFocus = function() { return true; };
-          } catch (e) {}
-
-          // B. Chặn các hàm cảnh báo blur / focusout / visibilitychange của website thi tiếng Anh
-          const blockBlur = function(e) {
-            e.stopImmediatePropagation();
-            e.stopPropagation();
-          };
-          window.addEventListener('blur', blockBlur, true);
-          window.addEventListener('focusout', blockBlur, true);
-          document.addEventListener('visibilitychange', blockBlur, true);
-          document.addEventListener('webkitvisibilitychange', blockBlur, true);
-
-          // C. Vô hiệu hóa gán window.onblur và window.onvisibilitychange từ website
-          try {
-            Object.defineProperty(window, 'onblur', {
-              get: () => null,
-              set: () => { console.log('[AI Shield] 🛡️ Đã chặn website gán window.onblur!'); },
-              configurable: true
-            });
-          } catch(e) {}
-
-          // D. Chặn cảnh báo rời chuột khỏi trang web (mouseleave / mouseout)
-          window.addEventListener('mouseleave', function(e) {
-            if (e.target === document || e.target === document.documentElement) {
-              e.stopImmediatePropagation();
-              e.stopPropagation();
-            }
-          }, true);
-
-          // E. Bỏ qua các hộp thoại alert/confirm cảnh báo từ hệ thống tiếng Anh
-          try {
-            window.alert = function(msg) {
-              console.log("[AI Shield] 🔕 Đã bỏ qua cảnh báo alert:", msg);
-            };
-            window.confirm = function(msg) {
-              console.log("[AI Shield] 🛡️ Đã tự động chấp thuận confirm:", msg);
-              return true;
-            };
-            window.prompt = function(msg) {
-              console.log("[AI Shield] 🔕 Bỏ qua prompt:", msg);
-              return null;
-            };
-            window.onbeforeunload = null;
-          } catch(e) {}
-
-          console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh đã sẵn sàng bảo vệ!");
-        })();
-      `;
-      (document.head || document.documentElement).appendChild(script);
-      script.remove();
+      if (!window.__w_f_guard && typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+        const scriptUrl = chrome.runtime.getURL("shield.js");
+        const existing = document.querySelector(`script[src="${scriptUrl}"]`);
+        if (!existing) {
+          const script = document.createElement("script");
+          script.src = scriptUrl;
+          (document.head || document.documentElement).appendChild(script);
+        }
+      }
     } catch (e) {
-      console.warn("[AI Shield] Không thể tiêm script lá chắn:", e);
+      // shield.js đã được tải tự động độc lập qua manifest content_scripts world: MAIN
     }
   }
 
@@ -1833,32 +1780,12 @@
       }
     });
 
-    // 1. Nếu target là thẻ <a> có href="javascript:..." (phổ biến trong ASP.NET WebForms __doPostBack)
-    const href = target.getAttribute && (target.getAttribute('href') || target.href || '');
-    if (href && href.toLowerCase().startsWith('javascript:')) {
-      try {
-        const code = decodeURIComponent(href.replace(/^javascript:/i, ''));
-        const s = doc.createElement('script');
-        s.textContent = code;
-        (doc.head || doc.documentElement).appendChild(s);
-        s.remove();
-      } catch (e) {
-        try { win.eval(href.replace(/^javascript:/i, '')); } catch (e2) {}
+    // 1. Kích hoạt trực tiếp onclick handler nếu phần tử có định nghĩa
+    try {
+      if (typeof target.onclick === 'function') {
+        target.onclick.call(target, new MouseEvent('click', opts));
       }
-    }
-
-    // 2. Nếu target có attribute onclick
-    const onclickAttr = target.getAttribute && target.getAttribute('onclick');
-    if (onclickAttr) {
-      try {
-        const s = doc.createElement('script');
-        s.textContent = onclickAttr;
-        (doc.head || doc.documentElement).appendChild(s);
-        s.remove();
-      } catch (e) {
-        try { win.eval(onclickAttr); } catch (e2) {}
-      }
-    }
+    } catch (e) {}
 
     // 3. Kích hoạt jQuery trigger nếu trang sử dụng jQuery
     try {
@@ -3586,76 +3513,25 @@
   }
 
   /**
-   * Kích hoạt drop trực tiếp trong Page Context (nơi jQuery UI hoạt động)
+   * Kích hoạt drop trực tiếp trong Page Context (nơi jQuery UI hoạt động) qua CustomEvent (CSP Compliant)
    */
   function injectPageDrop(sourceEl, targetEl, endX, endY) {
     const doc = targetEl.ownerDocument || sourceEl.ownerDocument || document;
+    const win = doc.defaultView || window;
     const srcUid = 'ai_src_' + Math.random().toString(36).slice(2);
     const tgtUid = 'ai_tgt_' + Math.random().toString(36).slice(2);
     sourceEl.setAttribute('data-ai-src', srcUid);
     targetEl.setAttribute('data-ai-tgt', tgtUid);
 
-    const scriptCode = `
-      (function() {
-        try {
-          const $ = window.jQuery || window.$;
-          const src = document.querySelector('[data-ai-src="${srcUid}"]');
-          const tgt = document.querySelector('[data-ai-tgt="${tgtUid}"]');
-          if (!src || !tgt) return;
-
-          if ($) {
-            const $src = $(src);
-            const $tgt = $(tgt);
-
-            // Tìm droppable instance trên tgt hoặc phần tử cha gần nhất
-            let droppableTarget = $tgt;
-            let inst = droppableTarget.data('ui-droppable') || droppableTarget.data('droppable');
-            if (!inst) {
-              const p = $tgt.closest('.ui-droppable, [class*="drop" i]');
-              if (p.length) {
-                droppableTarget = p;
-                inst = p.data('ui-droppable') || p.data('droppable');
-              }
-            }
-
-            const px = ${Math.round(endX)};
-            const py = ${Math.round(endY)};
-            const fakeUi = {
-              draggable: $src,
-              helper: $src,
-              position: { top: py, left: px },
-              offset: { top: py, left: px }
-            };
-            const dropEvt = $.Event('drop', {
-              target: droppableTarget[0] || tgt,
-              pageX: px,
-              pageY: py,
-              clientX: px,
-              clientY: py
-            });
-
-            if (inst) {
-              console.log('[AI Injected] Gọi droppable instance thành công:', droppableTarget[0]);
-              if (typeof inst._drop === 'function') {
-                inst._drop(dropEvt, fakeUi);
-              } else if (inst.options && typeof inst.options.drop === 'function') {
-                inst.options.drop.call(droppableTarget[0], dropEvt, fakeUi);
-              }
-            }
-            droppableTarget.trigger(dropEvt, fakeUi);
-            droppableTarget.trigger('change').trigger('input');
-          }
-        } catch(err) {
-          console.warn('[AI Injected Drop Error]', err);
-        }
-      })();
-    `;
-
     try {
-      const scriptEl = doc.createElement('script');
-      scriptEl.textContent = scriptCode;
-      (doc.head || doc.documentElement || doc.body).appendChild(scriptEl);
-      scriptEl.remove();
+      win.dispatchEvent(new CustomEvent('ai_trigger_drop', {
+        detail: {
+          srcUid,
+          tgtUid,
+          endX,
+          endY
+        }
+      }));
     } catch (e) {
       console.warn("[injectPageDrop]", e);
     }
