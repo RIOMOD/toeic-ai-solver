@@ -120,5 +120,54 @@
     }
   });
 
-  console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh đã sẵn sàng (CSP Compliant)!");
+  // G. Bắt tức thì URL âm thanh bài nghe (Audio Capture) ở Main World
+  function notifyCapturedAudio(url) {
+    if (!url || typeof url !== "string") return;
+    if (url.startsWith("data:") || url.startsWith("blob:")) return;
+    if (/\.(png|jpg|jpeg|gif|svg|webp|ico|js|css|html|aspx)($|\?)/i.test(url)) return;
+    if (/\.(mp3|wav|ogg|m4a|aac|opus|weba)($|\?)/i.test(url) || url.includes("/audio/") || url.includes("sound")) {
+      window.__capturedAudioUrl = url;
+      window.dispatchEvent(new CustomEvent("ai_audio_captured", { detail: { url } }));
+      console.log("[AI Shield] 🎵 Bắt được trực tiếp URL âm thanh bài nghe:", url);
+    }
+  }
+
+  try {
+    const origAudio = window.Audio;
+    if (origAudio) {
+      window.Audio = function(src) {
+        const inst = new origAudio(src);
+        if (src) notifyCapturedAudio(src);
+        const origPlay = inst.play;
+        inst.play = function() {
+          notifyCapturedAudio(inst.src || inst.currentSrc);
+          return origPlay.apply(this, arguments);
+        };
+        return inst;
+      };
+      window.Audio.prototype = origAudio.prototype;
+    }
+  } catch (eAudio) {}
+
+  try {
+    const playDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'play');
+    if (playDesc && playDesc.value) {
+      const origPlay = playDesc.value;
+      playDesc.value = function() {
+        notifyCapturedAudio(this.src || this.currentSrc);
+        return origPlay.apply(this, arguments);
+      };
+      Object.defineProperty(HTMLMediaElement.prototype, 'play', playDesc);
+    }
+  } catch (eMedia) {}
+
+  try {
+    const origXhrOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      notifyCapturedAudio(url);
+      return origXhrOpen.apply(this, arguments);
+    };
+  } catch (eXhr) {}
+
+  console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh & bộ bắt audio đã sẵn sàng!");
 })();

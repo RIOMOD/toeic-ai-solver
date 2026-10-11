@@ -49,6 +49,16 @@
 
   activateAntiWarningGuard();
 
+  // Lắng nghe URL âm thanh bắt được tức thì từ Main World (shield.js)
+  window.addEventListener("ai_audio_captured", (e) => {
+    if (e.detail?.url) {
+      window.__capturedAudioUrl = e.detail.url;
+      try {
+        chrome.runtime.sendMessage({ action: "save_audio", url: e.detail.url }).catch(() => {});
+      } catch (err) {}
+    }
+  });
+
   // 1. Chặn các hộp thoại modal/alert mặc định của trình duyệt làm đóng băng luồng JS trong content script
   try {
     window.alert = function (msg) { console.log("[Shield 24/7] Bỏ qua alert:", msg); };
@@ -2385,30 +2395,23 @@
       if (isListeningExercise) {
         const questionSolveStartTime = Date.now();
 
-        // 1. Luôn xóa bộ nhớ đệm audio cũ để không bao giờ bị dính audio câu trước!
-        try {
-          await chrome.runtime.sendMessage({ action: "clear_audio" });
-        } catch (e) {}
-
-        // 2. Kích hoạt nút Play âm thanh của trang
+        // 1. Thử kích hoạt nút Play âm thanh nếu bài chưa tự phát
         tryTriggerAudioPlayback();
-        await sleep(300);
 
-        audioUrl = findAudioUrl();
+        // 2. Tìm audio URL ngay lập tức từ window.__capturedAudioUrl (bắt từ shield.js) hoặc DOM
+        audioUrl = window.__capturedAudioUrl || findAudioUrl();
         if (audioUrl) {
           console.log(`[Content] 🎵 Đã tìm thấy audio bài nghe trực tiếp:`, audioUrl);
           audioData = await fetchAudioAsBase64(audioUrl);
         }
 
-        // 3. Nếu chưa tải được audio trực tiếp, tích cực dò tìm lại và đợi Background bắt network request (tối đa 3.5 giây)
+        // 3. Nếu chưa có audio, đợi Background Service Worker bắt network request (tối đa 1.0 giây)
         if (!audioData) {
           const waitAudioStart = Date.now();
-          while (Date.now() - waitAudioStart < 3500) {
-            // Thử quét lại DOM / Performance Timeline vì audio có thể vừa nạp sau khi bấm Play
-            const retryUrl = findAudioUrl();
+          while (Date.now() - waitAudioStart < 1000) {
+            const retryUrl = window.__capturedAudioUrl || findAudioUrl();
             if (retryUrl && retryUrl !== audioUrl) {
               audioUrl = retryUrl;
-              console.log(`[Content] 🎵 Bắt được audio bài nghe trong vòng lặp chờ:`, audioUrl);
               audioData = await fetchAudioAsBase64(audioUrl);
               if (audioData) break;
             }
@@ -2416,7 +2419,7 @@
             try {
               const bgRes = await chrome.runtime.sendMessage({
                 action: "get_audio",
-                minTimestamp: questionSolveStartTime - 500
+                minTimestamp: questionSolveStartTime - 5000
               });
               if (bgRes && bgRes.success && bgRes.audio) {
                 audioData = bgRes.audio;
@@ -2424,7 +2427,7 @@
                 break;
               }
             } catch (e) {}
-            await sleep(250);
+            await sleep(150);
           }
         }
 
@@ -2439,19 +2442,22 @@
       }
 
       // 3. Chụp ảnh màn hình:
-      // - Với Part 2 TOEIC (chỉ hỏi đáp audio thuần túy, màn hình trống): Bỏ qua chụp để tối ưu tốc độ
-      // - Với TẤT CẢ các phần còn lại (Part 1 ảnh, Part 3/4 đồ thị/bảng biểu, Part 5/6/7 bài đọc hiểu):
-      //   LUÔN LUÔN chụp ảnh màn hình để AI so khớp trực quan 100% bố cục và dữ liệu!
+      // - Với Part 2 TOEIC (chỉ hỏi đáp audio thuần túy, màn hình chỉ có biểu tượng tai nghe): Bỏ qua chụp để tối ưu tốc độ
+      // - Với Part 5 TOEIC (câu hỏi trắc nghiệm điền từ thuần text trong DOM): Bỏ qua chụp để tối ưu tốc độ
+      // - Với Part 1 (ảnh), Part 3/4 (bảng biểu/đồ thị), Part 6/7 (đoạn văn dài): Chụp ảnh để AI đọc trực quan!
       let screenshotBase64 = null;
-      const isPart1 = (
-        allDocsText.includes("Listening Part 1") ||
-        qCurrentTitle.includes("part 1") ||
-        allDocsText.includes("hear four statements about a picture") ||
-        allDocsText.includes("picture on the screen")
+      const isPart2 = (
+        qCurrentTitle.toLowerCase().includes("part 2") ||
+        allDocsText.includes("Listening Part 2") ||
+        allDocsText.includes("three responses spoken in English") ||
+        allDocsText.includes("three responses")
       );
-      const isPart2 = (allDocsText.includes("Listening Part 2") || qCurrentTitle.includes("part 2")) && !isPart1;
-
-      const shouldCaptureScreenshot = !isPart2;
+      const isPart5 = (
+        qCurrentTitle.toLowerCase().includes("part 5") ||
+        allDocsText.includes("Part 5") ||
+        allDocsText.includes("Incomplete Sentences")
+      );
+      const shouldCaptureScreenshot = !isPart2 && !isPart5;
 
       if (shouldCaptureScreenshot) {
         try {
@@ -2466,7 +2472,7 @@
           console.warn("[Content] Lỗi khi chụp ảnh màn hình:", e);
         }
       } else {
-        console.log("[Content] ⚡ Bỏ qua chụp ảnh màn hình (Part 2 thuần audio) để tăng tốc độ!");
+        console.log(`[Content] ⚡ Bỏ qua chụp ảnh màn hình (${isPart2 ? "Part 2 thuần audio" : "Part 5 thuần text DOM"}) để tăng tốc độ gấp 3 lần!`);
       }
 
       // 4. Gửi sang Backend Node.js với timeout bảo vệ 55 giây

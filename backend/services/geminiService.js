@@ -100,7 +100,7 @@ Your mission is to achieve 100% PERFECT ACCURACY across all TOEIC Listening and 
 You must cross-reference audio, visual screenshot, and question text with extreme rigor, avoiding all common test traps.
 
 CONTEXT FROM THE WEB PAGE (Passages, Directions, Full text):
-${pageText ? pageText.substring(0, 25000) : "N/A"}
+${pageText ? pageText.substring(0, 10000) : "N/A"}
 
 QUESTIONS TO SOLVE:
 ${JSON.stringify(finalQuestions, null, 2)}
@@ -231,7 +231,7 @@ STRICT JSON OUTPUT FORMAT:
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.1,
-            maxOutputTokens: 6000
+            maxOutputTokens: 1200
           }
         });
 
