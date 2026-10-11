@@ -4831,8 +4831,70 @@
 
   // =========================================================================
   // HỆ THỐNG LƯU TRỮ & XEM LỊCH SỬ ĐÁP ÁN BÀI THI (TEST ANSWER HISTORY)
+  // Ghi nhận lịch sử câu trả lời của từng câu hỏi, từng phần vào 1 file duy nhất của mỗi bài test
   // =========================================================================
   let _currentTestSessionId = null;
+  let _saveHistoryDebounceTimer = null;
+
+  function getTestExamTitle() {
+    // 1. Quét thẻ tiêu đề bài thi trên trang
+    const titleSelectors = [
+      ".test-title", ".exam-title", ".quiz-title", ".test-name", ".exam-name",
+      ".exam-header", ".test-header", "h1.title", "h1", ".page-title"
+    ];
+    for (const sel of titleSelectors) {
+      const el = queryAllInDocs(sel).find(e => !isAiElement(e) && isElementVisible(e));
+      if (el) {
+        const t = el.innerText.trim();
+        if (t.length >= 4 && t.length <= 80 && !t.includes("Listening Part") && !t.includes("Reading Part") && !t.startsWith("Câu ")) {
+          return t;
+        }
+      }
+    }
+
+    // 2. Dựa vào document.title
+    const docTitle = (document.title || "").trim();
+    const cleanDoc = docTitle.replace(/\s*[-–|].*$/, "").trim();
+    if (cleanDoc.length >= 4 && cleanDoc.length <= 60 && !cleanDoc.includes("Listening Part") && !cleanDoc.startsWith("Câu ")) {
+      return cleanDoc;
+    }
+
+    // 3. Dựa vào URL path
+    try {
+      const pathParts = window.location.pathname.split("/").filter(Boolean);
+      const candidate = pathParts.find(p => /test|exam|quiz|toeic|de-thi/i.test(p));
+      if (candidate) {
+        return candidate.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      }
+    } catch (e) {}
+
+    return "Bài Thi TOEIC";
+  }
+
+  function getQuestionPartName(questionTitleOrNum, explicitPart = "") {
+    if (explicitPart && explicitPart.toLowerCase().includes("part")) {
+      return explicitPart;
+    }
+    const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
+    const partMatch = allDocsText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
+    if (partMatch) {
+      return partMatch[1].replace(/\s+/g, " ");
+    }
+
+    const n = typeof questionTitleOrNum === "number"
+      ? questionTitleOrNum
+      : parseInt(String(questionTitleOrNum || "").replace(/\D/g, ""), 10);
+
+    if (n >= 1 && n <= 6) return "Part 1 (Photographs - Mô tả tranh)";
+    if (n >= 7 && n <= 31) return "Part 2 (Question - Response - Hỏi & Đáp)";
+    if (n >= 32 && n <= 70) return "Part 3 (Conversations - Đoạn hội thoại)";
+    if (n >= 71 && n <= 100) return "Part 4 (Short Talks - Bài nói chuyện ngắn)";
+    if (n >= 101 && n <= 130) return "Part 5 (Incomplete Sentences - Điền vào chỗ trống)";
+    if (n >= 131 && n <= 146) return "Part 6 (Text Completion - Hoàn thành đoạn văn)";
+    if (n >= 147 && n <= 200) return "Part 7 (Reading Comprehension - Đọc hiểu đoạn văn)";
+
+    return "Bài Thi";
+  }
 
   function getOrCreateTestSessionId() {
     if (!_currentTestSessionId) {
@@ -4841,7 +4903,10 @@
         if (saved) {
           _currentTestSessionId = saved;
         } else {
-          _currentTestSessionId = "test_" + Date.now();
+          const now = new Date();
+          const dateTag = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+          const urlSlug = (window.location.pathname.replace(/\W+/g, "_").slice(-15) || "exam");
+          _currentTestSessionId = `test_${dateTag}_${urlSlug}_${Date.now().toString().slice(-4)}`;
           sessionStorage.setItem("_toeic_active_session_id", _currentTestSessionId);
         }
       } catch (e) {
@@ -4854,7 +4919,7 @@
   async function recordTestAnswers(solutions, questionsData = []) {
     if (!solutions || solutions.length === 0) return;
     const sessionId = getOrCreateTestSessionId();
-    const pageTitle = getCurrentQuestionTitle() || document.title || "Bài Thi TOEIC";
+    const testExamName = getTestExamTitle();
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = now.toLocaleDateString('vi-VN');
@@ -4867,7 +4932,8 @@
       if (!session) {
         session = {
           id: sessionId,
-          title: pageTitle.length > 70 ? pageTitle.substring(0, 70) + "..." : pageTitle,
+          title: testExamName,
+          testName: testExamName,
           url: window.location.href,
           createdAt: `${dateStr} ${timeStr}`,
           lastUpdated: `${dateStr} ${timeStr}`,
@@ -4876,11 +4942,16 @@
         history.unshift(session);
       } else {
         session.lastUpdated = `${dateStr} ${timeStr}`;
+        if (testExamName && testExamName !== "Bài Thi TOEIC") {
+          session.title = testExamName;
+          session.testName = testExamName;
+        }
       }
 
       solutions.forEach((sol, idx) => {
         const qData = questionsData.find(q => q.id === sol.question_id) || questionsData[idx];
         const qNum = getQuestionItemTitle(idx, sol, solutions.length, questionsData);
+        const partName = getQuestionPartName(qNum, questionsData[idx]?.part || sol.part);
 
         const promptText = qData?.prompt || sol.question_text || "";
         const existingIdx = session.answers.findIndex(a =>
@@ -4890,12 +4961,13 @@
 
         const answerRecord = {
           id: sol.question_id || `q_${Date.now()}_${idx}`,
+          part: partName,
           questionNum: qNum,
           prompt: promptText,
           selectedAnswer: sol.selected_value || "N/A",
           explanation: sol.explanation || "",
           confidence: Math.round((sol.confidence || 0.98) * 100),
-          transcript: sol.transcript || null,
+          transcript: sol.transcript || sol.conversation_transcript || null,
           time: timeStr
         };
 
@@ -4906,13 +4978,20 @@
         }
       });
 
+      // Sắp xếp câu hỏi tăng dần theo số câu (1, 2, ..., 100)
+      session.answers.sort((a, b) => {
+        const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+        const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
+        return numA - numB;
+      });
+
       // Giới hạn lưu 30 bài thi gần nhất
       if (history.length > 30) {
         history = history.slice(0, 30);
       }
 
       await chrome.storage.local.set({ toeic_test_history: history });
-      console.log(`[History] 📝 Đã lưu lịch sử: ${session.answers.length} câu hỏi cho bài thi [${session.title}]`);
+      console.log(`[History] 📝 Đã cập nhật ${session.answers.length} câu hỏi vào bài thi [${session.title}]`);
 
       // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend)
       chrome.runtime.sendMessage({
@@ -4920,39 +4999,100 @@
         payload: session
       }).catch(() => {});
 
-      // 2. TỰ ĐỘNG LƯU VÀO THƯ MỤC TRÊN MÁY TÍNH (Downloads/TOEIC_History/)
-      const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
-      const txtContent = generateSessionTxtContent(session);
-      chrome.runtime.sendMessage({
-        action: "save_history_local_file",
-        filename: `TOEIC_History/${safeName}.txt`,
-        content: txtContent
-      }).catch(() => {});
+      // 2. TỰ ĐỘNG LƯU VÀO 1 FILE DUY NHẤT CHO MỖI BÀI TEST TRÊN MÁY TÍNH (Downloads/TOEIC_History/)
+      // Debounce 2 giây để tránh tạo nhiều file lẻ tẻ khi giải các câu liên tiếp
+      if (_saveHistoryDebounceTimer) {
+        clearTimeout(_saveHistoryDebounceTimer);
+      }
+      _saveHistoryDebounceTimer = setTimeout(() => {
+        const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+          .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
+          .substring(0, 40);
+        const filename = `TOEIC_History/${safeName}_${session.id}.txt`;
+        const txtContent = generateSessionTxtContent(session);
+
+        chrome.runtime.sendMessage({
+          action: "save_history_local_file",
+          filename: filename,
+          content: txtContent
+        }).catch(() => {});
+      }, 2000);
     } catch (err) {
       console.warn("[History] Lỗi khi lưu lịch sử đáp án:", err);
     }
   }
 
   function generateSessionTxtContent(session) {
-    if (!session || !session.answers) return "";
-    let content = `========================================================================\r\n`;
-    content += `BẢNG ĐÁP ÁN BÀI THI: ${session.title}\r\n`;
-    content += `Thời gian làm bài: ${session.createdAt || session.lastUpdated}\r\n`;
-    content += `Đường dẫn bài thi: ${session.url}\r\n`;
-    content += `Tổng số câu đã giải: ${session.answers.length} câu\r\n`;
-    content += `========================================================================\r\n\r\n`;
+    if (!session || !session.answers || session.answers.length === 0) return "";
 
-    session.answers.forEach((ans, i) => {
-      content += `[${i + 1}] ${ans.questionNum || `Câu ${i + 1}`}\r\n`;
-      if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
-      content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer}\r\n`;
-      if (ans.confidence) content += `Độ tin cậy AI: ${ans.confidence}%\r\n`;
-      if (ans.transcript) content += `Phụ đề nghe được (Transcript): ${ans.transcript}\r\n`;
-      if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
-      content += `------------------------------------------------------------------------\r\n\r\n`;
+    // Sắp xếp câu hỏi tăng dần theo số câu (1, 2, ..., 100)
+    const sortedAnswers = [...session.answers].sort((a, b) => {
+      const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
     });
 
-    content += `Được tự động lưu vào máy tính & đồng bộ lên Server bởi TOEIC AI Solver\r\n`;
+    let content = `================================================================================\r\n`;
+    content += `                    BẢNG ĐÁP ÁN BÀI THI TOEIC HOÀN CHỈNH\r\n`;
+    content += `================================================================================\r\n`;
+    content += `Tên bài thi: ${session.title || session.testName || "Bài Thi TOEIC"}\r\n`;
+    content += `Thời gian bắt đầu: ${session.createdAt || "N/A"}\r\n`;
+    content += `Cập nhật lần cuối: ${session.lastUpdated || "N/A"}\r\n`;
+    content += `Đường dẫn bài thi: ${session.url || window.location.href}\r\n`;
+    content += `Tổng số câu đã giải: ${sortedAnswers.length} câu\r\n`;
+    content += `================================================================================\r\n\r\n`;
+
+    // Nhóm các câu hỏi theo từng Part của bài thi
+    const partsMap = new Map();
+    sortedAnswers.forEach(ans => {
+      const partKey = ans.part || getQuestionPartName(ans.questionNum);
+      if (!partsMap.has(partKey)) {
+        partsMap.set(partKey, []);
+      }
+      partsMap.get(partKey).push(ans);
+    });
+
+    // In chi tiết từng phần (Part) và từng câu hỏi
+    partsMap.forEach((ansList, partTitle) => {
+      content += `--------------------------------------------------------------------------------\r\n`;
+      content += `=== ${partTitle.toUpperCase()} (${ansList.length} CÂU) ===\r\n`;
+      content += `--------------------------------------------------------------------------------\r\n\r\n`;
+
+      ansList.forEach((ans, i) => {
+        content += `[${ans.questionNum || `Câu ${i + 1}`}]\r\n`;
+        if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
+        content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer}\r\n`;
+        if (ans.confidence) content += `Độ tin cậy: ${ans.confidence}%\r\n`;
+        if (ans.transcript) content += `🎧 Transcript (Hội thoại/Bài nghe): ${ans.transcript}\r\n`;
+        if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
+        content += `\r\n`;
+      });
+      content += `\r\n`;
+    });
+
+    // Bảng tra nhanh toàn bộ đáp án ở cuối file (dễ dò và chấm bài)
+    content += `================================================================================\r\n`;
+    content += `BẢNG TỔNG HỢP NHANH ĐÁP ÁN (DỄ DÒ & ĐỐI CHIẾU):\r\n`;
+    content += `================================================================================\r\n`;
+
+    let line = "";
+    sortedAnswers.forEach((ans, idx) => {
+      const rawNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10) || (idx + 1);
+      const letterMatch = (ans.selectedAnswer || "").match(/\b([A-D])\b/i);
+      const ansLetter = letterMatch ? letterMatch[1].toUpperCase() : (ans.selectedAnswer || "?").substring(0, 3);
+      const itemStr = `${rawNum}. ${ansLetter}`.padEnd(10, " ");
+      line += itemStr;
+      if ((idx + 1) % 5 === 0) {
+        content += line.trimEnd() + `\r\n`;
+        line = "";
+      }
+    });
+    if (line.trim()) {
+      content += line.trimEnd() + `\r\n`;
+    }
+    content += `================================================================================\r\n`;
+    content += `Được tự động lưu vào 1 file duy nhất cho bài thi này bởi TOEIC AI Solver\r\n`;
+
     return content;
   }
 
@@ -4966,14 +5106,16 @@
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+    const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+      .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
+      .substring(0, 40);
     a.href = url;
-    a.download = `${safeName}_Dap_An.txt`;
+    a.download = `${safeName}_${session.id}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showAiToast(`💾 Đã xuất file TXT: ${session.answers.length} câu hỏi!`);
+    showAiToast(`💾 Đã xuất file TXT duy nhất: ${session.answers.length} câu hỏi!`);
   }
 
   function exportSessionToJson(session) {
@@ -4984,14 +5126,15 @@
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeName = (session.title || "Dap_An_TOEIC").replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_").substring(0, 30);
+    const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+      .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
+      .substring(0, 40);
     a.href = url;
-    a.download = `${safeName}_Dap_An.json`;
+    a.download = `${safeName}_${session.id}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showAiToast(`💾 Đã xuất file JSON thành công!`);
   }
 
   async function copySessionAnswers(session) {
@@ -5057,7 +5200,10 @@
       ? activeSession.answers.map((ans, idx) => `
         <div class="ai-history-item">
           <div class="ai-history-header">
-            <span class="ai-history-qnum">#${idx + 1}. ${escapeHtml(ans.questionNum || `Câu ${idx + 1}`)}</span>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span class="ai-history-qnum">#${idx + 1}. ${escapeHtml(ans.questionNum || `Câu ${idx + 1}`)}</span>
+              ${ans.part ? `<span style="font-size:10px;background:rgba(168,85,247,0.15);color:#c084fc;padding:2px 6px;border-radius:4px;font-weight:600;">${escapeHtml(ans.part)}</span>` : ""}
+            </div>
             <span class="ai-history-badge">👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}</span>
           </div>
           ${ans.prompt ? `<div class="ai-history-prompt">📖 ${escapeHtml(ans.prompt)}</div>` : ""}
