@@ -4709,54 +4709,71 @@
   // HỆ THỐNG LƯU TRỮ & XEM LỊCH SỬ ĐÁP ÁN BÀI THI (TEST ANSWER HISTORY)
   // Ghi nhận lịch sử câu trả lời của từng câu hỏi, từng phần vào 1 file duy nhất của mỗi bài test
   // =========================================================================
-  let _currentTestSessionId = null;
   let _saveHistoryDebounceTimer = null;
 
+  // Làm sạch tiêu đề bài thi: Tuyệt đối không để sót tên Part, Section, Câu hỏi vào tên file bài thi!
+  function cleanTestExamTitle(title) {
+    if (!title) return "Bai_Thi_TOEIC";
+    let t = String(title).trim();
+    // Loại bỏ mọi chuỗi liên quan đến Part, Section hoặc dải câu hỏi
+    t = t.replace(/(?:Listening|Reading)?\s*Part\s*\d+/gi, "");
+    t = t.replace(/Part\s*\d+/gi, "");
+    t = t.replace(/(?:Section|Phần)\s*\d+/gi, "");
+    t = t.replace(/(?:Câu|Question|Questions)\s*\d+(?:\s*[-–—~tođến]+\s*\d+)?(?:\s*of\s*\d+)?/gi, "");
+    t = t.replace(/\b(?:Listening|Reading)\b/gi, "");
+    t = t.replace(/[•\-\–\—\|:\.,]+/g, " ");
+    t = t.replace(/\s+/g, " ").trim();
+    if (t.length < 3 || /^(?:test|exam|bai thi|quiz)$/i.test(t)) {
+      return "Bai_Thi_TOEIC";
+    }
+    return t;
+  }
+
   function getTestExamTitle() {
+    const allDocs = getAllExerciseDocuments();
     // 1. Quét thẻ tiêu đề bài thi trên trang
     const titleSelectors = [
       ".test-title", ".exam-title", ".quiz-title", ".test-name", ".exam-name",
-      ".exam-header", ".test-header", "h1.title", "h1", ".page-title"
+      ".exam-header", ".test-header", "h1.title", "h1", "h2", ".header-title", ".page-title"
     ];
     for (const sel of titleSelectors) {
-      const el = queryAllInDocs(sel).find(e => !isAiElement(e) && isElementVisible(e));
-      if (el) {
-        const t = el.innerText.trim();
-        if (t.length >= 4 && t.length <= 80 && !t.includes("Listening Part") && !t.includes("Reading Part") && !t.startsWith("Câu ")) {
-          return t;
-        }
+      for (const doc of allDocs) {
+        try {
+          const els = doc.querySelectorAll(sel);
+          for (const el of els) {
+            if (!isAiElement(el) && isElementVisible(el)) {
+              const t = el.innerText.trim();
+              const cleaned = cleanTestExamTitle(t);
+              if (cleaned && cleaned !== "Bai_Thi_TOEIC" && cleaned.length >= 4) {
+                return cleaned;
+              }
+            }
+          }
+        } catch (e) {}
       }
     }
 
     // 2. Dựa vào document.title
     const docTitle = (document.title || "").trim();
-    const cleanDoc = docTitle.replace(/\s*[-–|].*$/, "").trim();
-    if (cleanDoc.length >= 4 && cleanDoc.length <= 60 && !cleanDoc.includes("Listening Part") && !cleanDoc.startsWith("Câu ")) {
+    const cleanDoc = cleanTestExamTitle(docTitle);
+    if (cleanDoc && cleanDoc !== "Bai_Thi_TOEIC" && cleanDoc.length >= 4) {
       return cleanDoc;
     }
 
-    // 3. Dựa vào URL path
+    // 3. Dựa vào URL hash hoặc pathname
     try {
-      const pathParts = window.location.pathname.split("/").filter(Boolean);
-      const candidate = pathParts.find(p => /test|exam|quiz|toeic|de-thi/i.test(p));
-      if (candidate) {
-        return candidate.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const fullPath = (window.location.hash || "") + " " + (window.location.pathname || "");
+      const match = fullPath.match(/(?:test|exam|ets|practice)[_-]?(\w+)/i);
+      if (match) {
+        return cleanTestExamTitle(match[0].replace(/[_-]/g, " "));
       }
     } catch (e) {}
 
-    return "Bài Thi TOEIC";
+    return "Bai_Thi_TOEIC";
   }
 
   function getQuestionPartName(questionTitleOrNum, explicitPart = "") {
-    if (explicitPart && explicitPart.toLowerCase().includes("part")) {
-      return explicitPart;
-    }
-    const allDocsText = getAllExerciseDocuments().map(d => d.body?.innerText || "").join(" ");
-    const partMatch = allDocsText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
-    if (partMatch) {
-      return partMatch[1].replace(/\s+/g, " ");
-    }
-
+    // 1. Ưu tiên số thứ tự câu hỏi chuẩn (1-200) của đề TOEIC
     const n = typeof questionTitleOrNum === "number"
       ? questionTitleOrNum
       : parseInt(String(questionTitleOrNum || "").replace(/\D/g, ""), 10);
@@ -4769,60 +4786,81 @@
     if (n >= 131 && n <= 146) return "Part 6 (Text Completion - Hoàn thành đoạn văn)";
     if (n >= 147 && n <= 200) return "Part 7 (Reading Comprehension - Đọc hiểu đoạn văn)";
 
+    if (explicitPart && explicitPart.toLowerCase().includes("part")) {
+      return explicitPart;
+    }
+
     return "Bài Thi";
   }
 
-  function getOrCreateTestSessionId() {
-    if (!_currentTestSessionId) {
-      try {
-        const saved = sessionStorage.getItem("_toeic_active_session_id");
-        if (saved) {
-          _currentTestSessionId = saved;
-        } else {
-          const now = new Date();
-          const dateTag = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-          const urlSlug = (window.location.pathname.replace(/\W+/g, "_").slice(-15) || "exam");
-          _currentTestSessionId = `test_${dateTag}_${urlSlug}_${Date.now().toString().slice(-4)}`;
-          sessionStorage.setItem("_toeic_active_session_id", _currentTestSessionId);
-        }
-      } catch (e) {
-        _currentTestSessionId = "test_" + Date.now();
+  // Duy trì DUY NHẤT 1 phiên làm bài qua chrome.storage.local cho cả bài test (từ Part 1 -> Part 7)
+  async function getOrCreateActiveSession(cleanExamName = "") {
+    const data = await chrome.storage.local.get(["toeic_test_history", "toeic_active_session_id"]);
+    let history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+    let activeId = data.toeic_active_session_id;
+
+    let session = null;
+    if (activeId) {
+      session = history.find(s => s.id === activeId);
+    }
+
+    // Nếu chưa có activeId nhưng session gần nhất trong history còn mới (< 4 tiếng) -> TÁI SỬ DỤNG CHÍNH NÓ!
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+    const now = Date.now();
+    if (!session && history.length > 0) {
+      const latest = history[0];
+      if (latest && latest.timestamp && (now - latest.timestamp < FOUR_HOURS)) {
+        session = latest;
+        activeId = session.id;
+        await chrome.storage.local.set({ toeic_active_session_id: activeId });
       }
     }
-    return _currentTestSessionId;
+
+    const isStale = session && session.timestamp && (now - session.timestamp > FOUR_HOURS);
+
+    const nowDate = new Date();
+    const timeStr = nowDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateStr = nowDate.toLocaleDateString('vi-VN');
+
+    if (!session || isStale) {
+      const dateTag = `${nowDate.getFullYear()}${String(nowDate.getMonth() + 1).padStart(2, "0")}${String(nowDate.getDate()).padStart(2, "0")}`;
+      activeId = `exam_${dateTag}_${Date.now().toString().slice(-6)}`;
+      const title = cleanExamName || "Bai_Thi_TOEIC";
+      session = {
+        id: activeId,
+        title: title,
+        testName: title,
+        url: window.location.href,
+        createdAt: `${dateStr} ${timeStr}`,
+        lastUpdated: `${dateStr} ${timeStr}`,
+        timestamp: Date.now(),
+        answers: []
+      };
+      history.unshift(session);
+      await chrome.storage.local.set({
+        toeic_test_history: history,
+        toeic_active_session_id: activeId
+      });
+    } else {
+      session.lastUpdated = `${dateStr} ${timeStr}`;
+      session.timestamp = Date.now();
+      if (cleanExamName && cleanExamName !== "Bai_Thi_TOEIC" && (session.title === "Bai_Thi_TOEIC" || session.title === "Bài Thi TOEIC")) {
+        session.title = cleanExamName;
+        session.testName = cleanExamName;
+      }
+    }
+
+    return { session, history };
   }
 
   async function recordTestAnswers(solutions, questionsData = []) {
     if (!solutions || solutions.length === 0) return;
-    const sessionId = getOrCreateTestSessionId();
-    const testExamName = getTestExamTitle();
+    const cleanExamName = cleanTestExamTitle(getTestExamTitle());
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const dateStr = now.toLocaleDateString('vi-VN');
 
     try {
-      const data = await chrome.storage.local.get(["toeic_test_history"]);
-      let history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
-
-      let session = history.find(s => s.id === sessionId);
-      if (!session) {
-        session = {
-          id: sessionId,
-          title: testExamName,
-          testName: testExamName,
-          url: window.location.href,
-          createdAt: `${dateStr} ${timeStr}`,
-          lastUpdated: `${dateStr} ${timeStr}`,
-          answers: []
-        };
-        history.unshift(session);
-      } else {
-        session.lastUpdated = `${dateStr} ${timeStr}`;
-        if (testExamName && testExamName !== "Bài Thi TOEIC") {
-          session.title = testExamName;
-          session.testName = testExamName;
-        }
-      }
+      const { session, history } = await getOrCreateActiveSession(cleanExamName);
 
       solutions.forEach((sol, idx) => {
         const qData = questionsData.find(q => q.id === sol.question_id) || questionsData[idx];
@@ -4830,13 +4868,19 @@
         const partName = getQuestionPartName(qNum, questionsData[idx]?.part || sol.part);
 
         const promptText = qData?.prompt || sol.question_text || "";
-        const existingIdx = session.answers.findIndex(a =>
-          (a.id && sol.question_id && a.id === sol.question_id) ||
-          (a.questionNum === qNum && promptText && a.prompt === promptText)
-        );
+        const rawNum = parseInt(String(qNum || "").replace(/\D/g, ""), 10) || 0;
+
+        // So khớp câu hỏi theo số câu hoặc ID để ghi đè cập nhật vào đúng vị trí
+        const existingIdx = session.answers.findIndex(a => {
+          if (a.id && sol.question_id && a.id === sol.question_id) return true;
+          const aRawNum = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+          if (rawNum > 0 && aRawNum > 0 && rawNum === aRawNum) return true;
+          if (a.questionNum === qNum && promptText && a.prompt === promptText) return true;
+          return false;
+        });
 
         const answerRecord = {
-          id: sol.question_id || `q_${Date.now()}_${idx}`,
+          id: sol.question_id || `q_${rawNum || (Date.now() + '_' + idx)}`,
           part: partName,
           questionNum: qNum,
           prompt: promptText,
@@ -4854,7 +4898,7 @@
         }
       });
 
-      // Sắp xếp câu hỏi tăng dần theo số câu (1, 2, ..., 100)
+      // Sắp xếp câu hỏi tăng dần theo số câu (1, 2, ..., 200)
       session.answers.sort((a, b) => {
         const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
         const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
@@ -4862,12 +4906,9 @@
       });
 
       // Giới hạn lưu 30 bài thi gần nhất
-      if (history.length > 30) {
-        history = history.slice(0, 30);
-      }
-
-      await chrome.storage.local.set({ toeic_test_history: history });
-      console.log(`[History] 📝 Đã cập nhật ${session.answers.length} câu hỏi vào bài thi [${session.title}]`);
+      const updatedHistory = history.length > 30 ? history.slice(0, 30) : history;
+      await chrome.storage.local.set({ toeic_test_history: updatedHistory });
+      console.log(`[History] 📝 Đã gom ${session.answers.length} câu hỏi của cả bài thi vào DUY NHẤT 1 file [${session.title}] (Session: ${session.id})`);
 
       // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend Database)
       chrome.runtime.sendMessage({
@@ -4878,15 +4919,16 @@
         }
       }).catch(() => {});
 
-      // 2. TỰ ĐỘNG LƯU VÀO 1 FILE DUY NHẤT CHO MỖI BÀI TEST TRÊN MÁY TÍNH (Downloads/TOEIC_History/)
-      // Debounce 2 giây để tránh tạo nhiều file lẻ tẻ khi giải các câu liên tiếp
+      // 2. TỰ ĐỘNG LƯU VÀO ĐÚNG 1 FILE DUY NHẤT CHO MỖI BÀI TEST TRÊN MÁY TÍNH
+      // Không bao giờ tạo nhiều file theo từng Part!
       if (_saveHistoryDebounceTimer) {
         clearTimeout(_saveHistoryDebounceTimer);
       }
       _saveHistoryDebounceTimer = setTimeout(() => {
-        const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+        const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
           .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
-          .substring(0, 40);
+          .replace(/_+/g, "_")
+          .substring(0, 35);
         const filename = `TOEIC_History/${safeName}_${session.id}.txt`;
         const txtContent = generateSessionTxtContent(session);
 
@@ -4985,9 +5027,10 @@
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+    const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
       .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
-      .substring(0, 40);
+      .replace(/_+/g, "_")
+      .substring(0, 35);
     a.href = url;
     a.download = `${safeName}_${session.id}.txt`;
     document.body.appendChild(a);
@@ -5005,9 +5048,10 @@
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeName = (session.testName || session.title || "Bai_Thi_TOEIC")
+    const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
       .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
-      .substring(0, 40);
+      .replace(/_+/g, "_")
+      .substring(0, 35);
     a.href = url;
     a.download = `${safeName}_${session.id}.json`;
     document.body.appendChild(a);
@@ -5044,7 +5088,7 @@
       document.body.appendChild(modal);
     }
 
-    const data = await chrome.storage.local.get(["toeic_test_history"]);
+    const data = await chrome.storage.local.get(["toeic_test_history", "toeic_active_session_id"]);
     const history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
 
     if (history.length === 0) {
@@ -5057,15 +5101,15 @@
           <div style="font-size: 32px; margin-bottom: 12px;">📂</div>
           <div style="font-size: 13.5px; color: #f8fafc; font-weight: 600; margin-bottom: 6px;">Chưa có lịch sử làm bài nào</div>
           <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4;">
-            Khi bạn quét và giải câu hỏi (hoặc chạy Tự Động Next / Siêu Auto), toàn bộ đáp án và lời giải sẽ tự động được lưu lại tại đây!
+            Khi bạn quét và giải câu hỏi (hoặc chạy Tự Động Next / Siêu Auto), toàn bộ đáp án của cả bài test sẽ tự động được gom vào đúng 1 file duy nhất!
           </div>
         </div>
       `;
       return;
     }
 
-    // Lấy bài thi cần hiển thị (mặc định bài thi hiện tại hoặc bài thi gần nhất)
-    const currentSessionId = getOrCreateTestSessionId();
+    // Lấy bài thi cần hiển thị (mặc định bài thi đang kích hoạt hoặc bài thi gần nhất)
+    const currentSessionId = data.toeic_active_session_id;
     let activeSession = history.find(s => s.id === (targetSessionId || currentSessionId)) || history[0];
 
     // Tạo danh sách chọn bài thi
@@ -5110,10 +5154,13 @@
       </div>
 
       <div class="ai-history-toolbar">
+        <button id="ai-btn-new-session" class="ai-history-btn" title="Bắt đầu phiên bài thi mới (tạo file mới cho bài thi tiếp theo)">
+          <span>➕</span> Bài Thi Mới
+        </button>
         <button id="ai-btn-copy-history" class="ai-history-btn" title="Sao chép toàn bộ đáp án vào clipboard">
           <span>📋</span> Sao Chép
         </button>
-        <button id="ai-btn-export-txt" class="ai-history-btn" title="Tải về file text">
+        <button id="ai-btn-export-txt" class="ai-history-btn" title="Tải về file text duy nhất của bài thi này">
           <span>💾</span> Tải TXT
         </button>
         <button id="ai-btn-export-json" class="ai-history-btn" title="Tải về file JSON">
@@ -5135,6 +5182,14 @@
 
     document.getElementById("ai-history-session-select")?.addEventListener("change", (e) => {
       showHistoryModal(e.target.value);
+    });
+
+    document.getElementById("ai-btn-new-session")?.addEventListener("click", async () => {
+      if (confirm("Bạn có muốn chốt bài thi này và BẮT ĐẦU MỘT BÀI THI MỚI (các câu hỏi tiếp theo sẽ lưu vào 1 file mới) không?")) {
+        await chrome.storage.local.remove(["toeic_active_session_id"]);
+        showAiToast("✨ Đã tạo phiên làm bài mới! Các câu hỏi tiếp theo sẽ lưu vào 1 file mới.");
+        modal.remove();
+      }
     });
 
     document.getElementById("ai-btn-copy-history")?.addEventListener("click", () => {
