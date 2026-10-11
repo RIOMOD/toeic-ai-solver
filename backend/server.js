@@ -10,7 +10,8 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const HISTORY_DIR = path.join(__dirname, "data", "history");
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, "data");
+const HISTORY_DIR = path.join(DATA_DIR, "history");
 
 // Đảm bảo thư mục lưu trữ lịch sử trên máy chủ luôn tồn tại
 try {
@@ -19,6 +20,95 @@ try {
   }
 } catch (e) {
   console.warn("Không thể tạo thư mục HISTORY_DIR:", e);
+}
+
+// Hàm hỗ trợ phân loại Part TOEIC chuẩn xác
+function getQuestionPartName(qNum, explicitPart) {
+  if (explicitPart && String(explicitPart).trim()) {
+    return String(explicitPart).trim();
+  }
+  const match = String(qNum || "").match(/\d+/);
+  if (!match) return "Phần Chung";
+  const n = parseInt(match[0], 10);
+  if (n >= 1 && n <= 6) return "Part 1: Photographs";
+  if (n >= 7 && n <= 31) return "Part 2: Question - Response";
+  if (n >= 32 && n <= 70) return "Part 3: Conversations";
+  if (n >= 71 && n <= 100) return "Part 4: Short Talks";
+  if (n >= 101 && n <= 130) return "Part 5: Incomplete Sentences";
+  if (n >= 131 && n <= 146) return "Part 6: Text Completion";
+  if (n >= 147 && n <= 200) return "Part 7: Reading Comprehension";
+  return "Phần Khác";
+}
+
+// Tạo nội dung file TXT lưu trữ chi tiết theo từng Part kèm bảng đáp án nhanh
+function generateServerTxtContent(session) {
+  if (!session || !session.answers || session.answers.length === 0) return "";
+
+  const sortedAnswers = [...session.answers].sort((a, b) => {
+    const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+    const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
+    return numA - numB;
+  });
+
+  let content = `================================================================================\r\n`;
+  content += `                    BẢNG ĐÁP ÁN BÀI THI TOEIC HOÀN CHỈNH\r\n`;
+  content += `================================================================================\r\n`;
+  content += `Tên bài thi: ${session.title || session.testName || "Bài Thi TOEIC"}\r\n`;
+  content += `Thời gian bắt đầu: ${session.createdAt || "N/A"}\r\n`;
+  content += `Cập nhật lần cuối: ${session.lastUpdated || new Date().toISOString()}\r\n`;
+  content += `Đường dẫn bài thi: ${session.url || "N/A"}\r\n`;
+  content += `Tổng số câu đã giải: ${sortedAnswers.length} câu\r\n`;
+  content += `================================================================================\r\n\r\n`;
+
+  const partsMap = new Map();
+  sortedAnswers.forEach(ans => {
+    const partKey = ans.part || getQuestionPartName(ans.questionNum);
+    if (!partsMap.has(partKey)) {
+      partsMap.set(partKey, []);
+    }
+    partsMap.get(partKey).push(ans);
+  });
+
+  partsMap.forEach((ansList, partTitle) => {
+    content += `--------------------------------------------------------------------------------\r\n`;
+    content += `=== ${partTitle.toUpperCase()} (${ansList.length} CÂU) ===\r\n`;
+    content += `--------------------------------------------------------------------------------\r\n\r\n`;
+
+    ansList.forEach((ans, i) => {
+      content += `[${ans.questionNum || `Câu ${i + 1}`}]\r\n`;
+      if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
+      content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer || "N/A"}\r\n`;
+      if (ans.confidence) content += `Độ tin cậy: ${ans.confidence}%\r\n`;
+      if (ans.transcript) content += `🎧 Transcript (Hội thoại/Bài nghe): ${ans.transcript}\r\n`;
+      if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
+      content += `\r\n`;
+    });
+    content += `\r\n`;
+  });
+
+  content += `================================================================================\r\n`;
+  content += `BẢNG TỔNG HỢP NHANH ĐÁP ÁN (DỄ DÒ & ĐỐI CHIẾU):\r\n`;
+  content += `================================================================================\r\n`;
+
+  let line = "";
+  sortedAnswers.forEach((ans, idx) => {
+    const rawNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10) || (idx + 1);
+    const letterMatch = (ans.selectedAnswer || "").match(/\b([A-D])\b/i);
+    const ansLetter = letterMatch ? letterMatch[1].toUpperCase() : (ans.selectedAnswer || "?").substring(0, 3);
+    const itemStr = `${rawNum}. ${ansLetter}`.padEnd(10, " ");
+    line += itemStr;
+    if ((idx + 1) % 5 === 0) {
+      content += line.trimEnd() + `\r\n`;
+      line = "";
+    }
+  });
+  if (line.trim()) {
+    content += line.trimEnd() + `\r\n`;
+  }
+  content += `================================================================================\r\n`;
+  content += `Được lưu trữ tự động trên Database Server lúc: ${new Date().toLocaleString("vi-VN")}\r\n`;
+
+  return content;
 }
 
 const app = express();
@@ -94,27 +184,8 @@ app.post("/api/history", async (req, res) => {
     // 1. Lưu file JSON đầy đủ chi tiết
     fs.writeFileSync(jsonPath, JSON.stringify(session, null, 2), "utf-8");
 
-    // 2. Tạo và lưu file TXT rõ ràng, dễ đọc trên máy chủ
-    let txtContent = `========================================================================\r\n`;
-    txtContent += `BẢNG ĐÁP ÁN BÀI THI: ${session.title || "TOEIC Test"}\r\n`;
-    txtContent += `Thời gian làm bài: ${session.createdAt || session.lastUpdated || new Date().toISOString()}\r\n`;
-    txtContent += `Đường dẫn bài thi: ${session.url || "N/A"}\r\n`;
-    txtContent += `Tổng số câu đã giải: ${session.answers?.length || 0} câu\r\n`;
-    txtContent += `========================================================================\r\n\r\n`;
-
-    if (Array.isArray(session.answers)) {
-      session.answers.forEach((ans, i) => {
-        txtContent += `[${i + 1}] ${ans.questionNum || `Câu ${i + 1}`}\r\n`;
-        if (ans.prompt) txtContent += `Đề bài: ${ans.prompt}\r\n`;
-        txtContent += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer || "N/A"}\r\n`;
-        if (ans.confidence) txtContent += `Độ tin cậy: ${ans.confidence}%\r\n`;
-        if (ans.transcript) txtContent += `Phụ đề nghe được (Transcript): ${ans.transcript}\r\n`;
-        if (ans.explanation) txtContent += `💡 Giải thích: ${ans.explanation}\r\n`;
-        txtContent += `------------------------------------------------------------------------\r\n\r\n`;
-      });
-    }
-
-    txtContent += `Lưu trữ tự động trên Server lúc: ${new Date().toLocaleString("vi-VN")}\r\n`;
+    // 2. Tạo và lưu file TXT rõ ràng, dễ đọc trên máy chủ theo Part & bảng tổng hợp
+    let txtContent = session.txtContent || generateServerTxtContent(session);
     fs.writeFileSync(txtPath, txtContent, "utf-8");
 
     // 3. Cập nhật file danh mục tổng quan (index)
@@ -149,7 +220,7 @@ app.post("/api/history", async (req, res) => {
     if (indexList.length > 100) indexList = indexList.slice(0, 100);
     fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), "utf-8");
 
-    console.log(`[POST /api/history] 📁 Đã lưu trữ bài thi [${session.title}] (${session.answers?.length || 0} câu) lên Server.`);
+    console.log(`[POST /api/history] 📁 Đã lưu trữ bài thi [${session.title}] (${session.answers?.length || 0} câu) lên Server Database.`);
 
     return res.json({
       success: true,
@@ -163,7 +234,7 @@ app.post("/api/history", async (req, res) => {
   }
 });
 
-// Route lấy danh sách toàn bộ bài thi đã lưu trên Server
+// Route lấy danh sách toàn bộ bài thi đã lưu trên Server Database
 app.get("/api/history", (req, res) => {
   try {
     const indexPath = path.join(HISTORY_DIR, "index.json");
@@ -187,6 +258,44 @@ app.get("/api/history/:id", (req, res) => {
     }
     const session = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
     return res.json({ success: true, session });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Route xem/tải trực tiếp file TXT đáp án từ Server Database
+app.get("/api/history/:id/txt", (req, res) => {
+  try {
+    const safeId = String(req.params.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const txtPath = path.join(HISTORY_DIR, `${safeId}.txt`);
+    if (!fs.existsSync(txtPath)) {
+      return res.status(404).send("Không tìm thấy file TXT của bài thi này trên server.");
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.sendFile(txtPath);
+  } catch (err) {
+    return res.status(500).send(err.message);
+  }
+});
+
+// Route xóa một bài thi khỏi Server Database
+app.delete("/api/history/:id", (req, res) => {
+  try {
+    const safeId = String(req.params.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const jsonPath = path.join(HISTORY_DIR, `${safeId}.json`);
+    const txtPath = path.join(HISTORY_DIR, `${safeId}.txt`);
+    if (fs.existsSync(jsonPath)) fs.unlinkSync(jsonPath);
+    if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
+
+    const indexPath = path.join(HISTORY_DIR, "index.json");
+    if (fs.existsSync(indexPath)) {
+      try {
+        let indexList = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+        indexList = indexList.filter(item => item.id !== req.params.id && item.id !== safeId);
+        fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), "utf-8");
+      } catch (e) {}
+    }
+    return res.json({ success: true, message: `Đã xóa bài thi ${safeId} khỏi database server.` });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

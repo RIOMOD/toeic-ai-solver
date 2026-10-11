@@ -4993,10 +4993,13 @@
       await chrome.storage.local.set({ toeic_test_history: history });
       console.log(`[History] 📝 Đã cập nhật ${session.answers.length} câu hỏi vào bài thi [${session.title}]`);
 
-      // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend)
+      // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend Database)
       chrome.runtime.sendMessage({
         action: "sync_history_to_server",
-        payload: session
+        payload: {
+          ...session,
+          txtContent: generateSessionTxtContent(session)
+        }
       }).catch(() => {});
 
       // 2. TỰ ĐỘNG LƯU VÀO 1 FILE DUY NHẤT CHO MỖI BÀI TEST TRÊN MÁY TÍNH (Downloads/TOEIC_History/)
