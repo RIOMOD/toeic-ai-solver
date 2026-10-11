@@ -62,14 +62,15 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || "");
 
-// Danh sách model ưu tiên cao nhất: gemini-3.5-flash (tư duy logic đa phương thức cao nhất), sau đó là các bản flash-lite
+// Danh sách model ưu tiên cao nhất: các bản flash-lite ổn định cao, không bị 503 spike, tốc độ cực nhanh
 const CANDIDATE_MODELS = [
   process.env.GEMINI_MODEL,
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-lite-latest",
   "gemini-3-flash-preview",
   "gemini-3.5-flash",
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-flash-latest"
+  "gemini-3.8-flash"
 ].filter(Boolean);
 
 /**
