@@ -6,6 +6,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const badge = document.getElementById("backendBadge");
   const btnCheckHealth = document.getElementById("btnCheckHealth");
 
+  const apiKeyInput = document.getElementById("geminiApiKey");
+  const btnSaveApiKey = document.getElementById("btnSaveApiKey");
+
   const chkRun247 = document.getElementById("chkRun247");
   const chkAutoNext = document.getElementById("chkAutoNext");
 
@@ -15,12 +18,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 1. Tải toàn bộ cấu hình đã lưu trong chrome.storage
   chrome.storage.local.get(
-    ["backendUrl", "run247Mode", "autoNextMode", "ai_toolbar_hidden", "ai_toolbar_minimized"],
+    ["backendUrl", "geminiApiKey", "run247Mode", "autoNextMode", "ai_toolbar_hidden", "ai_toolbar_minimized"],
     (res) => {
       // Backend URL
       let url = res.backendUrl || DEFAULT_BACKEND_URL;
       backendInput.value = url;
       checkBackendHealth(url);
+
+      // Gemini API Key
+      if (apiKeyInput && res.geminiApiKey) {
+        apiKeyInput.value = res.geminiApiKey;
+      }
 
       // 24/7 Mode (Mặc định bật true)
       if (chkRun247) {
@@ -80,6 +88,29 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ backendUrl: val });
     checkBackendHealth(val);
   });
+
+  // Lưu Gemini API Key
+  if (btnSaveApiKey && apiKeyInput) {
+    btnSaveApiKey.addEventListener("click", () => {
+      const keyVal = apiKeyInput.value.trim();
+      chrome.storage.local.set({ geminiApiKey: keyVal }, () => {
+        const origText = btnSaveApiKey.innerText;
+        btnSaveApiKey.innerText = "✓ Đã lưu";
+        btnSaveApiKey.style.borderColor = "#22c55e";
+        btnSaveApiKey.style.color = "#22c55e";
+        setTimeout(() => {
+          btnSaveApiKey.innerText = origText;
+          btnSaveApiKey.style.borderColor = "#38bdf8";
+          btnSaveApiKey.style.color = "#38bdf8";
+        }, 1500);
+      });
+    });
+
+    apiKeyInput.addEventListener("change", () => {
+      const keyVal = apiKeyInput.value.trim();
+      chrome.storage.local.set({ geminiApiKey: keyVal });
+    });
+  }
 
   // 3. Cài đặt chế độ 24/24
   if (chkRun247) {

@@ -28,9 +28,10 @@ const CANDIDATE_MODELS = [
  * @param {string} [params.pageText] - Văn bản toàn trang
  * @param {string} [params.audioBase64] - Dữ liệu âm thanh Base64 bài nghe (nếu có)
  * @param {string} [params.audioMime] - MIME type của audio (mặc định audio/mp3)
+ * @param {string} [params.apiKey] - API key tùy chọn từ Extension
  * @returns {Promise<Array>} - Danh sách lời giải [{ question_id, selected_index, selected_value, explanation, confidence }]
  */
-export async function solveQuestionsBatch({ questions, base64Image, pageText, audioBase64, audioMime }) {
+export async function solveQuestionsBatch({ questions, base64Image, pageText, audioBase64, audioMime, apiKey: requestApiKey }) {
   const finalQuestions = (questions && questions.length > 0) ? questions : [
     {
       id: "q_1",
@@ -162,8 +163,11 @@ STRICT JSON OUTPUT FORMAT:
 
   contents.push(prompt);
 
-  const rawKeys = (process.env.GEMINI_API_KEY || "").split(",").map(k => k.trim()).filter(Boolean);
-  const keysToUse = rawKeys.length > 0 ? rawKeys : [apiKey || ""];
+  const rawKeys = [
+    ...(requestApiKey ? requestApiKey.split(",") : []),
+    ...(process.env.GEMINI_API_KEY || "").split(",")
+  ].map(k => k.trim()).filter(Boolean);
+  const keysToUse = rawKeys.length > 0 ? [...new Set(rawKeys)] : [apiKey || ""];
 
   // Thử lần lượt các key và model Flash để đảm bảo luôn phản hồi thành công và đạt độ chính xác cao nhất
   let lastError = null;

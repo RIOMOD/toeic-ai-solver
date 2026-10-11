@@ -309,8 +309,13 @@ if (chrome.commands && chrome.commands.onCommand) {
 
 
 async function forwardToBackend(payload) {
-  const storage = await chrome.storage.local.get(["backendUrl", "lastCapturedAudio"]);
+  const storage = await chrome.storage.local.get(["backendUrl", "geminiApiKey", "lastCapturedAudio"]);
   let backendUrl = (storage.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+
+  // Đính kèm custom Gemini API Key từ cài đặt Extension nếu có
+  if (storage.geminiApiKey && !payload.apiKey) {
+    payload.apiKey = storage.geminiApiKey;
+  }
 
   // Tự động kiểm tra: Nếu local backend (http://localhost:5000) đang mở thì ưu tiên dùng ngay để đạt tốc độ tức thì và ổn định 100%
   if (backendUrl !== "http://localhost:5000") {

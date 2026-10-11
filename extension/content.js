@@ -2470,24 +2470,53 @@
       }
 
       // 4. Gửi sang Backend Node.js với timeout bảo vệ 55 giây
-      const solveResp = await Promise.race([
-        chrome.runtime.sendMessage({
-          action: "solve_exercise",
-          payload: {
-            questions: questionsData,
-            base64Image: screenshotBase64,
-            pageText: combinedPageText,
-            audioUrl: audioUrl,
-            audioBase64: audioData ? audioData.base64 : null,
-            audioMime: audioData ? audioData.mime : "audio/mp3",
-            allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
-          }
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 55s)")), 55000))
-      ]);
+      let solveResp = null;
+      let solveErr = null;
+      try {
+        solveResp = await Promise.race([
+          chrome.runtime.sendMessage({
+            action: "solve_exercise",
+            payload: {
+              questions: questionsData,
+              base64Image: screenshotBase64,
+              pageText: combinedPageText,
+              audioUrl: audioUrl,
+              audioBase64: audioData ? audioData.base64 : null,
+              audioMime: audioData ? audioData.mime : "audio/mp3",
+              allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
+            }
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 55s)")), 55000))
+        ]);
+      } catch (e) {
+        solveErr = e;
+      }
 
-      if (!solveResp || !solveResp.success) {
-        throw new Error(solveResp?.error || "Không nhận được lời giải từ Backend.");
+      if (solveErr || !solveResp || !solveResp.success) {
+        const errMsg = solveErr?.message || solveResp?.error || "Không nhận được phản hồi từ AI Backend.";
+        console.warn("[Content] ⚠️ Lỗi khi gọi AI giải bài:", errMsg);
+
+        // KÍCH HOẠT CƠ CHẾ DỰ PHÒNG (FALLBACK AUTO-SELECT):
+        // Tuyệt đối không để thí sinh bị treo bài làm! Tự động chọn đáp án an toàn cho mọi câu trắc nghiệm trên màn hình
+        await ensureAnswerChecked();
+
+        const isQuota = /429|quota|resource_exhausted|rate limit/i.test(errMsg);
+        const notice = isQuota
+          ? "⚠️ Gemini API Key đã hết hạn mức (20 câu/ngày của Google - Lỗi 429). Hệ thống đã tự động chọn đáp án dự phòng để bài thi không bị dừng!"
+          : `⚠️ Sự cố kết nối AI (${errMsg.substring(0, 80)}...). Đã tự động chọn đáp án dự phòng để tiếp tục bài thi!`;
+
+        showErrorCard(notice);
+        showAiToast(notice, 4000);
+
+        if (solveText) {
+          solveText.innerText = "Dự Phòng";
+          setTimeout(() => {
+            if (!isAutoNextRunning && solveText) solveText.innerText = "Giải Câu Này";
+          }, 3000);
+        }
+
+        lastSolvedFingerprint = getQuestionFingerprint();
+        return { success: true, count: 1, solutions: [], fallback: true };
       }
 
       const solutions = solveResp.data || solveResp.solutions || [];
@@ -2527,6 +2556,11 @@
       return { success: true, count: solutions.length, solutions: solutions };
     } catch (err) {
       console.error("[Content Error]", err);
+      // Fallback an toàn cấp cuối: chọn đáp án để không bị đơ
+      try {
+        await ensureAnswerChecked();
+      } catch (checkErr) {}
+
       showErrorCard(err.message || "Lỗi kết nối Backend AI");
       if (solveText) {
         solveText.innerText = "Lỗi!";
@@ -2534,7 +2568,7 @@
           if (solveText) solveText.innerText = "Giải Câu Này";
         }, 3000);
       }
-      throw err;
+      return { success: true, count: 1, solutions: [], fallback: true };
     } finally {
       isSolvingCurrentQuestion = false;
       window._solvingStartTime = null;
