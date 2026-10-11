@@ -1,7 +1,59 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
+
+/**
+ * Gom toàn bộ API key được cấu hình:
+ * - Hỗ trợ cả 1 dòng cách nhau bằng dấu phẩy
+ * - Hỗ trợ cả nhiều dòng GEMINI_API_KEY=... riêng biệt
+ * - Hỗ trợ GEMINI_API_KEY_1, GEMINI_API_KEY_2...
+ * - Hỗ trợ key truyền trực tiếp từ Extension
+ */
+export function getAllConfiguredKeys(requestApiKey = null) {
+  const keys = [];
+
+  function addKey(val) {
+    if (!val) return;
+    const parts = String(val).split(/[,\n]/);
+    for (const part of parts) {
+      const clean = part.replace(/["'\r]/g, "").trim();
+      if (clean && !keys.includes(clean)) {
+        keys.push(clean);
+      }
+    }
+  }
+
+  // 1. Key từ extension payload
+  if (requestApiKey) addKey(requestApiKey);
+
+  // 2. Key từ process.env
+  for (const k of Object.keys(process.env)) {
+    if (k.startsWith("GEMINI_API_KEY")) {
+      addKey(process.env[k]);
+    }
+  }
+
+  // 3. Đọc trực tiếp từ các file .env để không bỏ sót các dòng bị ghi đè
+  const envPaths = [".env", "backend/.env", "../.env"];
+  for (const p of envPaths) {
+    try {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, "utf-8");
+        const lines = raw.split("\n");
+        for (const line of lines) {
+          const match = line.match(/^\s*GEMINI_API_KEY\w*\s*=\s*(.+)$/);
+          if (match) {
+            addKey(match[1]);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  return keys;
+}
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) {
@@ -163,11 +215,8 @@ STRICT JSON OUTPUT FORMAT:
 
   contents.push(prompt);
 
-  const rawKeys = [
-    ...(requestApiKey ? requestApiKey.split(",") : []),
-    ...(process.env.GEMINI_API_KEY || "").split(",")
-  ].map(k => k.trim()).filter(Boolean);
-  const keysToUse = rawKeys.length > 0 ? [...new Set(rawKeys)] : [apiKey || ""];
+  const keysToUse = getAllConfiguredKeys(requestApiKey);
+  console.log(`[GeminiService] 🔑 Đang quản lý và sẵn sàng xoay tua ${keysToUse.length} API keys.`);
 
   // Thử lần lượt các key và model Flash để đảm bảo luôn phản hồi thành công và đạt độ chính xác cao nhất
   let lastError = null;
