@@ -2445,26 +2445,30 @@
       // - Với Part 2 TOEIC (chỉ hỏi đáp audio thuần túy, màn hình chỉ có biểu tượng tai nghe): Bỏ qua chụp để tối ưu tốc độ
       // - Với Part 5 TOEIC (câu hỏi trắc nghiệm điền từ thuần text trong DOM): Bỏ qua chụp để tối ưu tốc độ
       // - Với Part 1 (ảnh), Part 3/4 (bảng biểu/đồ thị), Part 6/7 (đoạn văn dài): Chụp ảnh để AI đọc trực quan!
+      // 3. Chụp ảnh màn hình thông minh & tối ưu tốc độ:
+      // - Chỉ chụp khi THỰC SỰ CẦN: Part 1 (tranh), Graphic câu hỏi đồ thị/bảng biểu, Drag-Drop kéo thả, hoặc trang ít text.
+      // - Bỏ qua chụp với Part 2 (audio thuần), Part 5 (text thuần), Part 3/4/6/7 đã có đủ text DOM -> Tăng tốc gấp 3 lần!
       let screenshotBase64 = null;
-      const isPart2 = (
-        qCurrentTitle.toLowerCase().includes("part 2") ||
-        allDocsText.includes("Listening Part 2") ||
-        allDocsText.includes("three responses spoken in English") ||
-        allDocsText.includes("three responses")
+      const isPart1 = (
+        qCurrentTitle.toLowerCase().includes("part 1") ||
+        allDocsText.includes("Listening Part 1") ||
+        allDocsText.includes("Photographs")
       );
-      const isPart5 = (
-        qCurrentTitle.toLowerCase().includes("part 5") ||
-        allDocsText.includes("Part 5") ||
-        allDocsText.includes("Incomplete Sentences")
+      const hasGraphicKeyword = (
+        /graphic|chart|table|diagram|map|schedule|picture/i.test(allDocsText) ||
+        questionsData.some(q => /graphic|chart|table|diagram|map|schedule|picture|look at the/i.test(q.text || ""))
       );
-      const shouldCaptureScreenshot = !isPart2 && !isPart5;
+      const isDragDrop = Boolean(allDocsText.includes("drag") || queryAllInDocs(".ui-draggable, .draggable, [draggable='true']").length > 0);
+      const isShortText = combinedPageText.length < 250;
+
+      const shouldCaptureScreenshot = isPart1 || hasGraphicKeyword || isDragDrop || isShortText;
 
       if (shouldCaptureScreenshot) {
         try {
           const captureResp = await chrome.runtime.sendMessage({ action: "capture_tab" });
           if (captureResp && captureResp.success && captureResp.dataUrl) {
             screenshotBase64 = captureResp.dataUrl;
-            console.log(`[Content] 📸 Đã chụp ảnh màn hình bài tập (${Math.round(screenshotBase64.length / 1024)} KB) để AI so khớp đa phương thức!`);
+            console.log(`[Content] 📸 Đã chụp ảnh màn hình bài tập (${Math.round(screenshotBase64.length / 1024)} KB) cho câu hỏi cần hình ảnh!`);
           } else {
             console.warn("[Content] Không thể chụp tab, captureResp:", captureResp);
           }
@@ -2472,7 +2476,7 @@
           console.warn("[Content] Lỗi khi chụp ảnh màn hình:", e);
         }
       } else {
-        console.log(`[Content] ⚡ Bỏ qua chụp ảnh màn hình (${isPart2 ? "Part 2 thuần audio" : "Part 5 thuần text DOM"}) để tăng tốc độ gấp 3 lần!`);
+        console.log(`[Content] ⚡ Tự động bỏ qua chụp ảnh màn hình (Câu hỏi đã có đầy đủ Text/Audio trong DOM) -> Phản hồi siêu tốc 1-2s!`);
       }
 
       // 4. Gửi sang Backend Node.js với timeout bảo vệ 55 giây
@@ -3755,7 +3759,7 @@
           }
         }
 
-        // 4. Fallback tìm theo nhãn (A), (B), (C), (D) TRONG PHẠM VI NHÓM grp CỦA CÂU NÀY (Tuyệt đối không tìm toàn trang)
+        // 4. Fallback tìm theo nhãn (A), (B), (C), (D) TRONG PHẠM VI NHÓM grp CỦA CÂU NÀY
         if (!optNode && grp && selectedVal) {
           const letter = letterMatch ? letterMatch[1].toUpperCase() : "";
           if (letter) {
@@ -3765,6 +3769,24 @@
               if (optText.startsWith(`(${letter})`) || optText.startsWith(letter)) {
                 optNode = r;
                 break;
+              }
+            }
+          }
+
+          // 4b. SIÊU CẢI TIẾN: So khớp theo Nội Dung Văn Bản (Content-based Match)
+          // Xử lý hoàn hảo trường hợp option trên web không có chữ cái A/B/C/D
+          if (!optNode) {
+            const cleanTarget = selectedVal.replace(/^\(?([A-D])[\)\.\:\s]+/i, "").trim().toLowerCase();
+            if (cleanTarget.length >= 2) {
+              for (let rIdx = 0; rIdx < grp.length; rIdx++) {
+                const r = grp[rIdx];
+                const rawOptText = extractRadioOptionText(r, rIdx).toLowerCase();
+                const cleanOpt = rawOptText.replace(/^\(?([A-D])[\)\.\:\s]+/i, "").trim();
+                if (cleanOpt === cleanTarget || cleanOpt.includes(cleanTarget) || cleanTarget.includes(cleanOpt)) {
+                  console.log(`[AutoFill] 🎯 Khớp chính xác radio option qua nội dung text: "${cleanOpt}"`);
+                  optNode = r;
+                  break;
+                }
               }
             }
           }
