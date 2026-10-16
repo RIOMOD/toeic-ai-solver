@@ -387,10 +387,26 @@ async function forwardToBackend(payload) {
   console.log(`[Background] 🚀 Gửi bài tập tới Backend: ${backendUrl}/api/solve (Có Audio: ${Boolean(payload.audioBase64)})`);
 
   let lastError = null;
-  const maxRetries = 1;
+  const maxRetries = 2;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // Nếu lần 1 thất bại, tự động chuyển đổi qua lại giữa Render và Localhost để cứu ngay lập tức
+      if (attempt > 1) {
+        if (backendUrl !== "http://localhost:5000") {
+          try {
+            const localCheck = await fetch("http://localhost:5000/api/health", { method: "GET", signal: AbortSignal.timeout(600) });
+            if (localCheck.ok) {
+              console.log("[Background] ⚡ Lần 2: Tự động chuyển hướng sang Local Backend (http://localhost:5000)!");
+              backendUrl = "http://localhost:5000";
+            }
+          } catch (e) {}
+        } else {
+          console.log("[Background] ⚡ Lần 2: Chuyển hướng sang Render Cloud Backend!");
+          backendUrl = DEFAULT_BACKEND_URL;
+        }
+      }
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -407,7 +423,7 @@ async function forwardToBackend(payload) {
         throw new Error(data.error || `Lỗi máy chủ HTTP ${response.status}`);
       }
 
-      console.log(`[Background] Backend trả về ${data.solutions?.length || 0} đáp án thành công.`);
+      console.log(`[Background] Backend (${backendUrl}) trả về ${data.solutions?.length || 0} đáp án thành công.`);
       return {
         success: true,
         data: data.solutions,
@@ -416,9 +432,9 @@ async function forwardToBackend(payload) {
       };
     } catch (error) {
       lastError = error;
-      console.warn(`[Background] Lần thử ${attempt}/${maxRetries} thất bại khi kết nối Backend:`, error.message);
+      console.warn(`[Background] Lần thử ${attempt}/${maxRetries} thất bại khi kết nối Backend (${backendUrl}):`, error.message);
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1200));
       }
     }
   }

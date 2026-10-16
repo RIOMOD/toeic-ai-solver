@@ -4227,14 +4227,28 @@
         <div class="ai-card-title"><span style="color:#ef4444;">⚠️</span> ${escapeHtml(currentTitle)}</div>
         <button class="ai-card-close" id="ai-btn-card-close" title="Đóng">&times;</button>
       </div>
-      <div style="padding: 18px 14px; color: #f87171; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
-        <div style="font-size: 24px;">⚠️</div>
+      <div style="padding: 16px 14px; color: #f87171; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div style="font-size: 22px;">⚠️</div>
         <div style="font-weight: 700; color: #fca5a5;">Chưa lấy được lời giải AI</div>
         <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4; word-break: break-word;">${escapeHtml(errorMsg)}</div>
+        <button id="ai-btn-card-retry" style="margin-top: 6px; padding: 5px 14px; font-size: 11.5px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(59,130,246,0.35);">
+          🔄 Thử lại bằng AI ngay
+        </button>
       </div>
     `;
     const closeBtn = card.querySelector("#ai-btn-card-close");
     if (closeBtn) closeBtn.onclick = () => card.remove();
+
+    const retryBtn = card.querySelector("#ai-btn-card-retry");
+    if (retryBtn) {
+      retryBtn.onclick = async () => {
+        card.remove();
+        lastSolvedFingerprint = null;
+        console.log("[Content] 🔄 Người dùng bấm thử lại bằng AI...");
+        await triggerScanAndSolve();
+      };
+    }
+
     setupDraggable(card);
     setupResizable(card);
     setTimeout(() => {
@@ -4242,7 +4256,7 @@
       if (c && c.innerHTML.includes("Chưa lấy được lời giải")) {
         c.remove();
       }
-    }, 4500);
+    }, 6000);
   }
 
   function showLoadingCard(message = "AI đang lắng nghe âm thanh & giải câu này...") {
