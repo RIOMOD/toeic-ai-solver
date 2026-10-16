@@ -74,15 +74,12 @@ if (!defaultApiKey) {
   console.warn("⚠️ CẢNH BÁO: Chưa cấu hình GEMINI_API_KEY trong file backend/.env!");
 }
 
-// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất
+// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất (gemini-flash-latest và gemini-3.5-flash luôn sẵn sàng 100%)
 const CANDIDATE_MODELS = [
-  process.env.GEMINI_MODEL,
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemini-flash-lite-latest",
+  "gemini-flash-latest",
   "gemini-3.5-flash",
-  "gemini-3-flash-preview",
-  "gemini-3.8-flash"
+  "gemini-3.8-flash",
+  process.env.GEMINI_MODEL
 ].filter(Boolean);
 
 /**

@@ -538,7 +538,7 @@
     });
 
     toolbar.querySelector("#ai-btn-review").addEventListener("click", () => {
-      runReviewAndCheckCompletion();
+      runReviewAndCheckCompletion(true, true);
     });
 
     toolbar.querySelector("#ai-btn-history").addEventListener("click", () => {
@@ -583,6 +583,13 @@
 
     function doMount() {
       if (!document.body) return;
+      const isHome = window.location.hash.includes("home") || window.location.href.includes("#/home");
+      if (isHome) {
+        const reviewModal = document.getElementById("ai-review-modal");
+        if (reviewModal) reviewModal.remove();
+        const card = document.getElementById("ai-solver-card");
+        if (card) card.remove();
+      }
       if (!isToolbarHidden) {
         initToolbarElements();
         updateToolbarDisplay();
@@ -869,14 +876,15 @@
         return;
       }
 
-      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 25 giây, tự động giải phóng!
+      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 15 giây, tự động giải phóng & chọn đáp án dự phòng!
       if (isSolvingCurrentQuestion) {
         if (!window._solvingStartTime) {
           window._solvingStartTime = Date.now();
-        } else if (Date.now() - window._solvingStartTime > 25000) {
-          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >25s, tự động giải phóng khóa để tiếp tục!");
+        } else if (Date.now() - window._solvingStartTime > 15000) {
+          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >15s, tự động giải phóng khóa & chọn đáp án an toàn!");
           isSolvingCurrentQuestion = false;
           window._solvingStartTime = null;
+          try { ensureAnswerChecked(); } catch (e) {}
           const sTxt = document.getElementById("ai-solve-text");
           if (sTxt) sTxt.innerText = "Giải Câu Này";
           const stuckCard = document.getElementById("ai-solver-card");
@@ -891,6 +899,7 @@
       // 0b. Kiểm tra nếu bài thi đã hoàn thành đến câu cuối cùng (màn hình tổng kết điểm) - dùng textContent tránh giật lag
       const allDocsText = getAllExerciseDocuments().map(d => d.body?.textContent || "").join(" ");
       if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText) || allDocsText.includes("You have reached the end of the test")) {
+        finalizeAndDownloadActiveExamSession("watcher_detected_score_summary");
         return;
       }
 
@@ -1233,6 +1242,7 @@
 
           if (isScoreSummary) {
             console.log("[MasterAuto] 🏆 Đã hoàn thành bài kiểm tra!");
+            await finalizeAndDownloadActiveExamSession("master_auto_score_summary");
             const storage = await chrome.storage.local.get(["run247Mode"]);
             const is247 = storage.run247Mode !== false; // Mặc định chế độ 24/24 được bật
 
@@ -1566,6 +1576,8 @@
       } catch (e) {}
       const card = document.getElementById("ai-solver-card");
       if (card) card.remove();
+      const reviewModal = document.getElementById("ai-review-modal");
+      if (reviewModal) reviewModal.remove();
     }
   }
 
@@ -2305,6 +2317,7 @@
       const allDocsText = getCachedPageText();
       if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText) || allDocsText.includes("You have reached the end of the test")) {
         console.log("[Content] 🏁 Bài kiểm tra đã hoàn thành đến câu cuối cùng!");
+        finalizeAndDownloadActiveExamSession("scan_and_solve_score_summary");
         showResultsCard([{
           question_id: "Hoàn Thành",
           selected_value: "100%",
@@ -2496,7 +2509,7 @@
               allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
             }
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 55s)")), 55000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 22s)")), 22000))
         ]);
       } catch (e) {
         solveErr = e;
@@ -2885,25 +2898,29 @@
         const titleEl = qContainer.querySelector('.question-title, .question-text, .prompt, h3, h4, legend, .q-text, p');
         if (titleEl && isElementVisible(titleEl)) {
           const t = titleEl.innerText.replace(/\s+/g, ' ').trim();
-          if (t.length > 5) return t;
+          if (t.length >= 2) return t;
         }
       }
     }
 
-    // 2. Tìm khối văn bản có đánh số câu (ví dụ "77. What kind of business...", "Question 77")
+    // 2. Tìm khối văn bản có đánh số câu (ví dụ "77. What kind...", "14.", "Question 14")
     const allTextEls = Array.from(doc.querySelectorAll('p, div, td, h3, h4, span, b, strong')).filter(el => {
       if (isAiElement(el) || !isElementVisible(el)) return false;
       if (radios.some(r => r.contains(el) || el.contains(r))) return false;
       const t = el.innerText.trim();
-      return /\b\d+\s*[\.\:\)]\s*\w+/.test(t) && t.length >= 8 && t.length <= 400;
+      return (
+        (/\b\d{1,3}\s*[\.\:\)]/.test(t) && t.length >= 2 && t.length <= 400) ||
+        (/\b(?:Question|Câu)\s*\d+/i.test(t) && t.length <= 100)
+      );
     });
 
     if (allTextEls.length > 0) {
       const rTop = firstRadio.getBoundingClientRect().top;
-      const above = allTextEls.filter(el => el.getBoundingClientRect().bottom <= rTop + 10);
+      const above = allTextEls.filter(el => el.getBoundingClientRect().bottom <= rTop + 15);
       if (above.length > 0) {
         above.sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
-        return above[0].innerText.replace(/\s+/g, ' ').trim();
+        const best = above[0].innerText.replace(/\s+/g, ' ').trim();
+        if (best.length >= 2) return best;
       }
     }
 
@@ -2912,9 +2929,21 @@
     while (prev) {
       if (!isAiElement(prev) && isElementVisible(prev)) {
         const t = prev.innerText.replace(/\s+/g, ' ').trim();
-        if (t.length > 5) return t;
+        if (t.length >= 2) return t;
       }
       prev = prev.previousElementSibling;
+    }
+
+    // 4. Nếu là bài nghe (Listening Part 1/Part 2) không có đề chữ, trích xuất chính xác số câu từ Header trang!
+    const allDocs = getAllExerciseDocuments();
+    const allPageText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const headerOfMatch = allPageText.match(/(?:Question|Questions|Câu)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})/i) ||
+                          allPageText.match(/\b(?:Question|Questions|Câu)\s*(\d{1,3})\b/i);
+    if (headerOfMatch) {
+      const num = parseInt(headerOfMatch[1], 10);
+      if (num >= 1 && num <= 200) {
+        return `${num + groupIndex}. (Nghe audio câu hỏi để chọn đáp án)`;
+      }
     }
 
     return `Câu hỏi trắc nghiệm #${groupIndex + 1}`;
@@ -2945,6 +2974,13 @@
         if (matchNum) {
           const n = parseInt(matchNum[1], 10);
           if (n >= 1 && n <= 200) parsedNum = n;
+        }
+        if (!parsedNum) {
+          const ofMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})/i);
+          if (ofMatch) {
+            const qOf = parseInt(ofMatch[1], 10);
+            if (!isNaN(qOf) && qOf >= 1 && qOf <= 200) parsedNum = qOf + index;
+          }
         }
         if (!parsedNum) {
           const headerRange = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—\s]|to|through|đến)+\s*(\d{1,3})/i);
@@ -2993,7 +3029,7 @@
     radioGroups.forEach((group, gIdx) => {
       const qPrompt = getQuestionPromptForGroup(group, gIdx);
 
-      // 1. Tìm số câu chính xác từ prompt (VD: "77. What kind..." -> 77)
+      // 1. Tìm số câu chính xác từ prompt (VD: "14.", "77. What kind..." -> 14, 77)
       let parsedNum = null;
       const matchNum = qPrompt.match(/(?:^|\b)(\d{1,3})\s*[\.\:\)]/);
       if (matchNum) {
@@ -3001,20 +3037,44 @@
         if (n >= 1 && n <= 200) parsedNum = n;
       }
 
-      // 2. Tìm theo dải số header (VD: Questions 77 - 79 -> 77 + gIdx)
-      const headerRange = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—\s]|to|through|đến)+\s*(\d{1,3})/i);
-      if (headerRange) {
-        const qStart = parseInt(headerRange[1], 10);
-        if (!isNaN(qStart) && qStart >= 1) {
-          if (!parsedNum || (gIdx > 0 && parsedNum === qStart)) {
-            parsedNum = qStart + gIdx;
+      // 2. Tìm theo Question X of Y (VD: Question 14 of 100)
+      if (!parsedNum) {
+        const ofMatch = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})/i);
+        if (ofMatch) {
+          const qOf = parseInt(ofMatch[1], 10);
+          if (!isNaN(qOf) && qOf >= 1 && qOf <= 200) {
+            parsedNum = qOf + gIdx;
           }
         }
       }
 
-      // 3. Nếu vẫn chưa có hoặc bị trùng với nhóm trước, quét các tiêu đề câu hỏi được đánh số trong toàn trang
+      // 3. Tìm theo dải số header (VD: Questions 77 - 79 -> 77 + gIdx)
+      if (!parsedNum) {
+        const headerRange = allDocsText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—\s]|to|through|đến)+\s*(\d{1,3})/i);
+        if (headerRange) {
+          const qStart = parseInt(headerRange[1], 10);
+          if (!isNaN(qStart) && qStart >= 1) {
+            if (!parsedNum || (gIdx > 0 && parsedNum === qStart)) {
+              parsedNum = qStart + gIdx;
+            }
+          }
+        }
+      }
+
+      // 4. Tìm theo Question X đơn lẻ trong header hoặc văn bản trang
+      if (!parsedNum) {
+        const singleHeader = allDocsText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\b/i);
+        if (singleHeader) {
+          const sNum = parseInt(singleHeader[1], 10);
+          if (!isNaN(sNum) && sNum >= 1 && sNum <= 200) {
+            parsedNum = sNum + gIdx;
+          }
+        }
+      }
+
+      // 5. Nếu vẫn chưa có hoặc bị trùng với nhóm trước, quét các tiêu đề câu hỏi được đánh số trong toàn trang
       if (!parsedNum || (results.length > 0 && results.some(r => r.question_number === parsedNum))) {
-        const docMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/g))
+        const docMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)](?:\s|$|\()/g))
           .map(m => parseInt(m[1], 10))
           .filter(n => n >= 1 && n <= 200);
         const distinctDocNums = docMatches.filter((n, idx, arr) => arr.indexOf(n) === idx);
@@ -4088,8 +4148,25 @@
     const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
     const combinedSearchText = `${allTitles} ${allDocsText}`;
 
-    // 1. Dựa vào dải số câu trên trang (VD: Questions 80 - 82 -> Câu 80 + index)
-    const rangeMatch = combinedSearchText.match(/(?:Questions?|Câu)?\s*(\d{1,3})\s*(?:[-–—~～\s]|to|through|đến)+\s*(\d{1,3})/i);
+    // 0. Ưu tiên số câu đã được trích xuất chính xác trong questionsData hoặc sol
+    if (sol?.question_number && typeof sol.question_number === "number" && sol.question_number >= 1) {
+      return `Câu ${sol.question_number}`;
+    }
+    if (questionsData && typeof questionsData[index]?.question_number === "number" && questionsData[index].question_number >= 1) {
+      return `Câu ${questionsData[index].question_number}`;
+    }
+
+    // 1. Dựa vào Question X of Y (VD: Question 14 of 100)
+    const ofMatch = combinedSearchText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})/i);
+    if (ofMatch) {
+      const qNum = parseInt(ofMatch[1], 10);
+      if (!isNaN(qNum) && qNum >= 1 && qNum <= 200) {
+        return `Câu ${qNum + index}`;
+      }
+    }
+
+    // 2. Dựa vào dải số câu trên trang (VD: Questions 80 - 82 -> Câu 80 + index)
+    const rangeMatch = combinedSearchText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—~～]|to|through|đến)+\s*(\d{1,3})/i);
     if (rangeMatch) {
       const startNum = parseInt(rangeMatch[1], 10);
       const endNum = parseInt(rangeMatch[2], 10);
@@ -4098,42 +4175,26 @@
       }
     }
 
-    // 2. Quét các tiêu đề đánh số xuất hiện trên trang theo thứ tự (VD: 80. ..., 81. ..., 82. ...)
-    const docMatches = Array.from(combinedSearchText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/g))
-      .map(m => parseInt(m[1], 10))
-      .filter(n => n >= 1 && n <= 200);
-    const distinctDocNums = docMatches.filter((n, idx, arr) => arr.indexOf(n) === idx);
-    if (distinctDocNums.length >= total && distinctDocNums[index]) {
-      return `Câu ${distinctDocNums[index]}`;
-    }
-
-    // 3. Số câu đã được gán trực tiếp từ quá trình scan hoặc AI trả về
-    let qNum = null;
-    if (sol?.question_number && typeof sol.question_number === "number") {
-      qNum = sol.question_number;
-    } else if (questionsData && typeof questionsData[index]?.question_number === "number") {
-      qNum = questionsData[index].question_number;
-    }
-
-    // Nếu câu đầu tiên có số câu (VD: câu 80), nhưng các câu sau thiếu hoặc bị gán trùng câu 80:
-    const firstNum = (
-      sol?.question_number ||
-      questionsData[0]?.question_number ||
-      distinctDocNums[0] ||
-      qNum
-    );
-    if (total > 1 && firstNum && typeof firstNum === "number") {
-      if (!qNum || qNum === firstNum) {
-        return `Câu ${firstNum + index}`;
+    // 3. Dựa vào Question X đơn lẻ trong header/nội dung
+    const singleMatch = combinedSearchText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\b/i);
+    if (singleMatch) {
+      const n = parseInt(singleMatch[1], 10);
+      if (!isNaN(n) && n >= 1 && n <= 200) {
+        return `Câu ${n + index}`;
       }
     }
 
-    if (qNum && qNum >= 1 && qNum <= 200) {
-      return `Câu ${qNum}`;
+    // 4. Quét các tiêu đề đánh số xuất hiện trên trang (VD: 14., 14:, 14)...)
+    const docMatches = Array.from(combinedSearchText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)](?:\s|$|\()/g))
+      .map(m => parseInt(m[1], 10))
+      .filter(n => n >= 1 && n <= 200);
+    const distinctDocNums = docMatches.filter((n, idx, arr) => arr.indexOf(n) === idx);
+    if (distinctDocNums.length > index) {
+      return `Câu ${distinctDocNums[index]}`;
     }
 
-    // 4. Trích xuất từ question_id (VD: "q_80", "question_81")
-    const idMatch = String(sol?.question_id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
+    // 5. Trích xuất từ question_id (VD: "q_14")
+    const idMatch = String(sol?.question_id || questionsData[index]?.id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
     if (idMatch) {
       const n = parseInt(idMatch[1], 10);
       if (n >= 1 && n <= 200 && !String(sol?.question_id).startsWith("radio_q_")) {
@@ -4141,17 +4202,12 @@
       }
     }
 
-    // 5. Trích xuất từ prompt/text của sol hoặc questionsData
+    // 6. Trích xuất từ prompt/text của sol hoặc questionsData
     const textToCheck = `${sol?.prompt || ""} ${sol?.text || ""} ${questionsData[index]?.text || ""}`;
     const pMatch = textToCheck.match(/(?:^|\b)(\d{1,3})\s*[\.\:\)]/);
     if (pMatch) {
       const n = parseInt(pMatch[1], 10);
       if (n >= 1 && n <= 200) return `Câu ${n}`;
-    }
-
-    // 6. Nếu có firstNum bất kỳ từ tài liệu
-    if (distinctDocNums.length > 0 && distinctDocNums[0]) {
-      return `Câu ${distinctDocNums[0] + index}`;
     }
 
     return `Câu ${index + 1}`;
@@ -4430,31 +4486,55 @@
    */
   async function fetchAudioAsBase64(audioUrl) {
     if (!audioUrl) return null;
-    try {
-      console.log("[Content] 📥 Đang tải file âm thanh trực tiếp:", audioUrl);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const res = await fetch(audioUrl, { signal: controller.signal });
-      clearTimeout(timeoutId);
+    return new Promise((resolve) => {
+      let isSettled = false;
+      const safeResolve = (val) => {
+        if (!isSettled) {
+          isSettled = true;
+          clearTimeout(totalTimer);
+          resolve(val);
+        }
+      };
 
-      if (!res.ok) return null;
-      const blob = await res.blob();
-      const mime = blob.type || (audioUrl.toLowerCase().includes(".wav") ? "audio/wav" : "audio/mp3");
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve({
-            base64: reader.result,
-            mime: mime
-          });
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch (err) {
-      console.warn("[Content] Không thể tải audio qua fetch:", err.message);
-      return null;
-    }
+      // Giới hạn thời gian tải audio tối đa 3.5 giây - TUYỆT ĐỐI KHÔNG ĐỂ TREO TIẾN TRÌNH GIẢI BÀI
+      const controller = new AbortController();
+      const totalTimer = setTimeout(() => {
+        try { controller.abort(); } catch (e) {}
+        console.warn("[Content] ⏱️ Quá thời gian 3.5s nạp audio bài nghe, chuyển sang phân tích đề bài trực tiếp...");
+        safeResolve(null);
+      }, 3500);
+
+      (async () => {
+        try {
+          console.log("[Content] 📥 Đang tải file âm thanh trực tiếp:", audioUrl);
+          const res = await fetch(audioUrl, { signal: controller.signal });
+          if (!res.ok) return safeResolve(null);
+
+          const blob = await res.blob();
+          if (!blob || blob.size === 0) return safeResolve(null);
+
+          // Giới hạn file audio tối đa 12MB để không ngốn RAM
+          if (blob.size > 12 * 1024 * 1024) {
+            console.warn("[Content] File audio quá lớn (>12MB), bỏ qua để tối ưu tốc độ.");
+            return safeResolve(null);
+          }
+
+          const mime = blob.type || (audioUrl.toLowerCase().includes(".wav") ? "audio/wav" : "audio/mp3");
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            safeResolve({
+              base64: reader.result,
+              mime: mime
+            });
+          };
+          reader.onerror = () => safeResolve(null);
+          reader.readAsDataURL(blob);
+        } catch (err) {
+          console.warn("[Content] Không thể tải audio qua fetch:", err.message);
+          safeResolve(null);
+        }
+      })();
+    });
   }
 
   /**
@@ -4591,14 +4671,26 @@
    * CHỨC NĂNG DÒ LẠI BÀI THI & KIỂM TRA HOÀN THÀNH (REVIEW COMPLETION)
    * =========================================================================
    */
-  async function runReviewAndCheckCompletion(autoFixMissing = true) {
-    console.log("[Review] 🔍 Bắt đầu dò lại bài thi...");
-    showReviewModal({ loading: true, message: "Đang rà soát và dò lại các câu hỏi trong bài thi..." });
+  async function runReviewAndCheckCompletion(autoFixMissing = true, isManualClick = false) {
+    // 0. Tuyệt đối không chạy và không mở modal nếu đang ở trang chủ (#/home)
+    const isHome = window.location.hash.includes("home") || window.location.href.includes("#/home");
+    if (isHome) {
+      const existing = document.getElementById("ai-review-modal");
+      if (existing) existing.remove();
+      return;
+    }
 
-    // 0. Nếu đang trong tiến trình giải câu, đợi nó hoàn thành trước
+    console.log(`[Review] 🔍 Bắt đầu dò lại bài thi... (Thủ công: ${isManualClick})`);
+    if (isManualClick) {
+      showReviewModal({ loading: true, message: "Đang rà soát và dò lại các câu hỏi trong bài thi..." });
+    }
+
+    // 0b. Nếu đang trong tiến trình giải câu, đợi nó hoàn thành trước
     if (isSolvingCurrentQuestion) {
       console.log("[Review] ⏳ AI đang trong tiến trình giải câu, đợi hoàn tất...");
-      showReviewModal({ loading: true, message: "AI đang phân tích câu hỏi trên màn hình, vui lòng chờ..." });
+      if (isManualClick) {
+        showReviewModal({ loading: true, message: "AI đang phân tích câu hỏi trên màn hình, vui lòng chờ..." });
+      }
       const waitSolve = Date.now();
       while (isSolvingCurrentQuestion && Date.now() - waitSolve < 15000) {
         await sleep(500);
@@ -4620,10 +4712,12 @@
       // 2. Nếu màn hình hiện tại có câu chưa làm và không đang giải:
       if (unansweredOnPage.length > 0 && !isSolvingCurrentQuestion) {
         console.log(`[Review] ⚠️ Phát hiện ${unansweredOnPage.length} câu chưa chọn đáp án trên trang hiện tại! Tự động giải ngay...`);
-        showReviewModal({
-          loading: true,
-          message: `Phát hiện ${unansweredOnPage.length} câu chưa làm trên màn hình này. Đang tự động giải bù...`
-        });
+        if (isManualClick) {
+          showReviewModal({
+            loading: true,
+            message: `Phát hiện ${unansweredOnPage.length} câu chưa làm trên màn hình này. Đang tự động giải bù...`
+          });
+        }
 
         try {
           await triggerScanAndSolve();
@@ -4664,13 +4758,15 @@
 
     if (reviewItems.total > 0) {
       console.log(`[Review] 📊 Tổng câu: ${reviewItems.total}, Đã làm: ${reviewItems.answered.length}, Chưa làm: ${reviewItems.unanswered.length}`);
-      showReviewModal({
-        loading: false,
-        total: reviewItems.total,
-        answered: reviewItems.answered,
-        unanswered: reviewItems.unanswered,
-        items: reviewItems.items
-      });
+      if (isManualClick) {
+        showReviewModal({
+          loading: false,
+          total: reviewItems.total,
+          answered: reviewItems.answered,
+          unanswered: reviewItems.unanswered,
+          items: reviewItems.items
+        });
+      }
 
       // Tự động giải bù nếu có câu chưa làm và có cờ autoFixMissing
       if (autoFixMissing && reviewItems.unanswered.length > 0) {
@@ -4688,6 +4784,15 @@
       // Tổng hợp kết quả các câu trên màn hình hiện tại
       const recheckedGroups = groupRadioButtons();
       const totalPage = recheckedGroups.length;
+
+      // Tuyệt đối không hiện modal nếu không có câu hỏi nào trên màn hình hiện tại
+      if (totalPage === 0) {
+        console.log("[Review] ℹ️ Không phát hiện câu hỏi bài thi trên màn hình hiện tại.");
+        const existing = document.getElementById("ai-review-modal");
+        if (existing) existing.remove();
+        return;
+      }
+
       let answeredPage = recheckedGroups.filter(g => g.some(r => isRadioSelected(r))).length;
       let unPage = totalPage - answeredPage;
 
@@ -4703,16 +4808,19 @@
       const inListening = isCurrentInListeningSection();
       const sectionNotice = inListening ? " [Phần thi Listening - Không cho phép tua lại]" : "";
 
-      showReviewModal({
-        loading: false,
-        total: totalPage,
-        answeredCount: answeredPage,
-        unansweredCount: unPage,
-        isListening: inListening,
-        message: unPage === 0
-          ? `🎉 Tất cả các câu trên màn hình hiện tại đã được hoàn thành 100%!${sectionNotice}`
-          : `⚠️ Còn ${unPage} câu chưa hoàn thành trên màn hình này!${sectionNotice}`
-      });
+      // CHỈ HIỂN THỊ MODAL NẾU NGƯỜI DÙNG BẤM THỦ CÔNG:
+      if (isManualClick) {
+        showReviewModal({
+          loading: false,
+          total: totalPage,
+          answeredCount: answeredPage,
+          unansweredCount: unPage,
+          isListening: inListening,
+          message: unPage === 0
+            ? `🎉 Tất cả các câu trên màn hình hiện tại đã được hoàn thành 100%!${sectionNotice}`
+            : `⚠️ Còn ${unPage} câu chưa hoàn thành trên màn hình này!${sectionNotice}`
+        });
+      }
 
       if (unPage === 0 && isMasterAutoRunning) {
         console.log("[MasterAuto] 🚀 Màn hình hiện tại đã chọn đủ 100%: Chuẩn bị nộp bài nếu là cuối bài...");
@@ -4865,8 +4973,34 @@
     return "Bai_Thi_TOEIC";
   }
 
+  function getCurrentPagePartName() {
+    const allDocs = getAllExerciseDocuments();
+    const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
+    const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
+    const combined = `${allTitles} ${allDocsText}`;
+
+    const partMatch = combined.match(/\b(Listening\s+Part\s*([1-4])|Reading\s+Part\s*([5-7])|Part\s*([1-7]))\b/i);
+    if (partMatch) {
+      const partNum = parseInt(partMatch[2] || partMatch[3] || partMatch[4] || partMatch[1].replace(/\D/g, ""), 10);
+      if (partNum === 1) return "Part 1 (Photographs - Mô tả tranh)";
+      if (partNum === 2) return "Part 2 (Question - Response - Hỏi & Đáp)";
+      if (partNum === 3) return "Part 3 (Conversations - Đoạn hội thoại)";
+      if (partNum === 4) return "Part 4 (Short Talks - Bài nói chuyện ngắn)";
+      if (partNum === 5) return "Part 5 (Incomplete Sentences - Điền vào chỗ trống)";
+      if (partNum === 6) return "Part 6 (Text Completion - Hoàn thành đoạn văn)";
+      if (partNum === 7) return "Part 7 (Reading Comprehension - Đọc hiểu đoạn văn)";
+      return `Part ${partNum}`;
+    }
+    return "";
+  }
+
   function getQuestionPartName(questionTitleOrNum, explicitPart = "") {
-    // 1. Ưu tiên số thứ tự câu hỏi chuẩn (1-200) của đề TOEIC
+    // 1. Ưu tiên Part rõ ràng từ tham số hoặc quét trực tiếp từ giao diện trang hiện tại
+    if (explicitPart && explicitPart.toLowerCase().includes("part")) {
+      return explicitPart;
+    }
+
+    // 2. Dựa vào số thứ tự câu hỏi chuẩn (1-200) của đề TOEIC
     const n = typeof questionTitleOrNum === "number"
       ? questionTitleOrNum
       : parseInt(String(questionTitleOrNum || "").replace(/\D/g, ""), 10);
@@ -4879,9 +5013,8 @@
     if (n >= 131 && n <= 146) return "Part 6 (Text Completion - Hoàn thành đoạn văn)";
     if (n >= 147 && n <= 200) return "Part 7 (Reading Comprehension - Đọc hiểu đoạn văn)";
 
-    if (explicitPart && explicitPart.toLowerCase().includes("part")) {
-      return explicitPart;
-    }
+    const pagePart = getCurrentPagePartName();
+    if (pagePart) return pagePart;
 
     return "Bài Thi";
   }
@@ -4897,12 +5030,12 @@
       session = history.find(s => s.id === activeId);
     }
 
-    // Nếu chưa có activeId nhưng session gần nhất trong history còn mới (< 4 tiếng) -> TÁI SỬ DỤNG CHÍNH NÓ!
+    // Nếu chưa có activeId nhưng session gần nhất trong history còn mới (< 4 tiếng) và CHƯA KẾT THÚC -> TÁI SỬ DỤNG!
     const FOUR_HOURS = 4 * 60 * 60 * 1000;
     const now = Date.now();
     if (!session && history.length > 0) {
       const latest = history[0];
-      if (latest && latest.timestamp && (now - latest.timestamp < FOUR_HOURS)) {
+      if (latest && !latest.isFinished && !latest.downloaded && latest.timestamp && (now - latest.timestamp < FOUR_HOURS)) {
         session = latest;
         activeId = session.id;
         await chrome.storage.local.set({ toeic_active_session_id: activeId });
@@ -4910,12 +5043,13 @@
     }
 
     const isStale = session && session.timestamp && (now - session.timestamp > FOUR_HOURS);
+    const isCompleted = session && (session.isFinished || session.downloaded);
 
     const nowDate = new Date();
     const timeStr = nowDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = nowDate.toLocaleDateString('vi-VN');
 
-    if (!session || isStale) {
+    if (!session || isStale || isCompleted) {
       const dateTag = `${nowDate.getFullYear()}${String(nowDate.getMonth() + 1).padStart(2, "0")}${String(nowDate.getDate()).padStart(2, "0")}`;
       activeId = `exam_${dateTag}_${Date.now().toString().slice(-6)}`;
       const title = cleanExamName || "Bai_Thi_TOEIC";
@@ -4927,7 +5061,9 @@
         createdAt: `${dateStr} ${timeStr}`,
         lastUpdated: `${dateStr} ${timeStr}`,
         timestamp: Date.now(),
-        answers: []
+        answers: [],
+        downloaded: false,
+        isFinished: false
       };
       history.unshift(session);
       await chrome.storage.local.set({
@@ -4951,29 +5087,40 @@
     const cleanExamName = cleanTestExamTitle(getTestExamTitle());
     const now = new Date();
     const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const currentPagePart = getCurrentPagePartName();
 
     try {
       const { session, history } = await getOrCreateActiveSession(cleanExamName);
 
       solutions.forEach((sol, idx) => {
         const qData = questionsData.find(q => q.id === sol.question_id) || questionsData[idx];
-        const qNum = getQuestionItemTitle(idx, sol, solutions.length, questionsData);
-        const partName = getQuestionPartName(qNum, questionsData[idx]?.part || sol.part);
+        let qNum = getQuestionItemTitle(idx, sol, solutions.length, questionsData);
+        let rawNum = parseInt(String(qNum || "").replace(/\D/g, ""), 10) || 0;
 
+        // BẢO VỆ CHỐNG TRÙNG VÀ CHỐNG GHI ĐÈ:
+        // Nếu không trích xuất được số câu hợp lệ (<= 0), tự động suy luận tiếp nối từ câu cao nhất đã có
+        if (rawNum <= 0) {
+          const maxSavedNum = session.answers.reduce((max, a) => {
+            const n = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+            return n > max ? n : max;
+          }, 0);
+          rawNum = maxSavedNum + 1 + idx;
+          qNum = `Câu ${rawNum}`;
+        }
+
+        const partName = getQuestionPartName(rawNum, qData?.part || sol.part || currentPagePart);
         const promptText = qData?.prompt || sol.question_text || "";
-        const rawNum = parseInt(String(qNum || "").replace(/\D/g, ""), 10) || 0;
 
         // So khớp câu hỏi theo số câu hoặc ID để ghi đè cập nhật vào đúng vị trí
         const existingIdx = session.answers.findIndex(a => {
-          if (a.id && sol.question_id && a.id === sol.question_id) return true;
+          if (a.id && sol.question_id && a.id === sol.question_id && !a.id.startsWith("radio_q_")) return true;
           const aRawNum = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
           if (rawNum > 0 && aRawNum > 0 && rawNum === aRawNum) return true;
-          if (a.questionNum === qNum && promptText && a.prompt === promptText) return true;
           return false;
         });
 
         const answerRecord = {
-          id: sol.question_id || `q_${rawNum || (Date.now() + '_' + idx)}`,
+          id: sol.question_id || `q_${rawNum}`,
           part: partName,
           questionNum: qNum,
           prompt: promptText,
@@ -4998,12 +5145,12 @@
         return numA - numB;
       });
 
-      // Giới hạn lưu 30 bài thi gần nhất
+      // Giới hạn lưu 30 bài thi gần nhất vào bộ nhớ storage
       const updatedHistory = history.length > 30 ? history.slice(0, 30) : history;
       await chrome.storage.local.set({ toeic_test_history: updatedHistory });
-      console.log(`[History] 📝 Đã gom ${session.answers.length} câu hỏi của cả bài thi vào DUY NHẤT 1 file [${session.title}] (Session: ${session.id})`);
+      console.log(`[History] 📝 Đã gom ${session.answers.length} câu hỏi của bài thi vào DUY NHẤT 1 file [${session.title}] (Session: ${session.id}) - Đang tích lũy, khi kết thúc bài mới tải file`);
 
-      // 1. TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (Render / Backend Database)
+      // TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (nếu có kết nối Backend)
       chrome.runtime.sendMessage({
         action: "sync_history_to_server",
         payload: {
@@ -5012,27 +5159,77 @@
         }
       }).catch(() => {});
 
-      // 2. TỰ ĐỘNG LƯU VÀO ĐÚNG 1 FILE DUY NHẤT CHO MỖI BÀI TEST TRÊN MÁY TÍNH
-      // Không bao giờ tạo nhiều file theo từng Part!
-      if (_saveHistoryDebounceTimer) {
-        clearTimeout(_saveHistoryDebounceTimer);
-      }
-      _saveHistoryDebounceTimer = setTimeout(() => {
-        const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
-          .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
-          .replace(/_+/g, "_")
-          .substring(0, 35);
-        const filename = `TOEIC_History/${safeName}_${session.id}.txt`;
-        const txtContent = generateSessionTxtContent(session);
-
-        chrome.runtime.sendMessage({
-          action: "save_history_local_file",
-          filename: filename,
-          content: txtContent
-        }).catch(() => {});
-      }, 2000);
+      // ⛔ TUYỆT ĐỐI KHÔNG TẢI FILE TRUNG GIAN KHI ĐANG LÀM BÀI!
+      // File chỉ được tải về máy đúng 1 lần duy nhất khi bài thi kết thúc (finalizeAndDownloadActiveExamSession).
     } catch (err) {
       console.warn("[History] Lỗi khi lưu lịch sử đáp án:", err);
+    }
+  }
+
+  // =========================================================================
+  // XUẤT VÀ TẢI VỀ 1 FILE DUY NHẤT CHỈ KHI KẾT THÚC BÀI THI
+  // =========================================================================
+  async function finalizeAndDownloadActiveExamSession(triggerReason = "exam_finished") {
+    try {
+      const data = await chrome.storage.local.get(["toeic_test_history", "toeic_active_session_id"]);
+      const activeId = data.toeic_active_session_id;
+      let history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
+      let session = activeId ? history.find(s => s.id === activeId) : (history[0] || null);
+
+      if (!session || !session.answers || session.answers.length === 0) {
+        console.log(`[History] ℹ️ Không có câu hỏi nào trong phiên để xuất file (${triggerReason}).`);
+        return;
+      }
+
+      // Đảm bảo chỉ tải về đúng 1 lần duy nhất khi kết thúc bài thi
+      if (session.downloaded) {
+        console.log(`[History] ℹ️ Phiên bài thi [${session.title}] (${session.id}) đã được xuất file trước đó rồi.`);
+        return;
+      }
+
+      console.log(`[History] 🏁 KẾT THÚC BÀI THI (${triggerReason})! Đang lưu & tải về file DUY NHẤT chứa toàn bộ ${session.answers.length} câu...`);
+      session.downloaded = true;
+      session.isFinished = true;
+      const now = new Date();
+      session.completedAt = `${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN')}`;
+
+      // Cập nhật lại history trong storage và reset active session để bài sau bắt đầu phiên mới
+      await chrome.storage.local.set({
+        toeic_test_history: history,
+        toeic_active_session_id: null
+      });
+
+      const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
+        .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
+        .replace(/_+/g, "_")
+        .substring(0, 35);
+      const filename = `TOEIC_History/${safeName}_${session.id}.txt`;
+      const txtContent = generateSessionTxtContent(session);
+
+      // Gửi lệnh tải file về thư mục Downloads/TOEIC_History
+      chrome.runtime.sendMessage({
+        action: "save_history_local_file",
+        filename: filename,
+        content: txtContent
+      }, (res) => {
+        if (chrome.runtime.lastError || !res?.success) {
+          console.warn("[History] Fallback tải file trực tiếp qua thẻ a:", chrome.runtime.lastError?.message || res?.error);
+          exportSessionToTxt(session);
+        }
+      });
+
+      // Đồng bộ bản hoàn thiện lên Server
+      chrome.runtime.sendMessage({
+        action: "sync_history_to_server",
+        payload: {
+          ...session,
+          txtContent: txtContent
+        }
+      }).catch(() => {});
+
+      showAiToast(`💾 Hoàn thành bài thi! Đã lưu toàn bộ ${session.answers.length} câu vào 1 file duy nhất & tải về máy.`);
+    } catch (err) {
+      console.warn("[History] Lỗi khi hoàn tất và tải file bài thi:", err);
     }
   }
 
@@ -5212,23 +5409,57 @@
       return `<option value="${s.id}" ${isSelected}>${escapeHtml(displayTitle)} (${s.answers?.length || 0} câu - ${s.lastUpdated || ""})</option>`;
     }).join("");
 
-    const answersListHtml = (activeSession.answers && activeSession.answers.length > 0)
-      ? activeSession.answers.map((ans, idx) => `
-        <div class="ai-history-item">
-          <div class="ai-history-header">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              <span class="ai-history-qnum">#${idx + 1}. ${escapeHtml(ans.questionNum || `Câu ${idx + 1}`)}</span>
-              ${ans.part ? `<span style="font-size:10px;background:rgba(168,85,247,0.15);color:#c084fc;padding:2px 6px;border-radius:4px;font-weight:600;">${escapeHtml(ans.part)}</span>` : ""}
+    let answersListHtml = "";
+    if (activeSession.answers && activeSession.answers.length > 0) {
+      // Nhóm câu hỏi theo từng Part của bài thi
+      const partsMap = new Map();
+      activeSession.answers.forEach(ans => {
+        const pKey = ans.part || getQuestionPartName(ans.questionNum);
+        if (!partsMap.has(pKey)) {
+          partsMap.set(pKey, []);
+        }
+        partsMap.get(pKey).push(ans);
+      });
+
+      partsMap.forEach((ansList, partTitle) => {
+        const isListening = partTitle.toLowerCase().includes("listening") || /part\s*[1-4]/i.test(partTitle);
+        const partIcon = isListening ? "🎧" : "📖";
+
+        answersListHtml += `
+          <div class="ai-history-part-group" style="margin-bottom: 14px;">
+            <div class="ai-history-part-header" style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(30,41,59,0.4) 100%);border-left:3.5px solid #3b82f6;padding:7px 10px;border-radius:6px;margin-bottom:8px;">
+              <div style="font-weight:700;font-size:12px;color:#60a5fa;display:flex;align-items:center;gap:6px;">
+                <span>${partIcon}</span>
+                <span>${escapeHtml(partTitle.toUpperCase())}</span>
+              </div>
+              <span style="font-size:10.5px;background:#1e293b;color:#94a3b8;padding:2px 7px;border-radius:10px;font-weight:600;">
+                ${ansList.length} câu
+              </span>
             </div>
-            <span class="ai-history-badge">👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}</span>
+            <div style="display:flex;flex-direction:column;gap:7px;">
+              ${ansList.map(ans => `
+                <div class="ai-history-item" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px 11px;">
+                  <div class="ai-history-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <span class="ai-history-qnum" style="font-weight:700;font-size:12.5px;color:#f8fafc;">${escapeHtml(ans.questionNum || "Câu ?")}</span>
+                      <span style="font-size:10px;color:#64748b;">${ans.time || ""}</span>
+                    </div>
+                    <span class="ai-history-badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:2px 8px;border-radius:12px;font-weight:700;font-size:11.5px;">
+                      👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}
+                    </span>
+                  </div>
+                  ${ans.prompt && ans.prompt.length > 2 ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#cbd5e1;margin-bottom:4px;line-height:1.4;"><strong>Đề bài:</strong> ${escapeHtml(ans.prompt)}</div>` : ""}
+                  ${ans.transcript ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#38bdf8;background:rgba(56,189,248,0.08);padding:5px 8px;border-radius:4px;margin-bottom:4px;line-height:1.4;">🎧 <strong>Transcript:</strong> ${escapeHtml(ans.transcript)}</div>` : ""}
+                  ${ans.explanation ? `<div class="ai-history-exp" style="font-size:11.5px;color:#fbbf24;line-height:1.4;">💡 <strong>Giải thích:</strong> ${escapeHtml(ans.explanation)}</div>` : ""}
+                </div>
+              `).join("")}
+            </div>
           </div>
-          ${ans.prompt ? `<div class="ai-history-prompt">📖 ${escapeHtml(ans.prompt)}</div>` : ""}
-          ${ans.transcript ? `<div class="ai-history-prompt" style="color:#38bdf8;">🎧 Transcript: ${escapeHtml(ans.transcript)}</div>` : ""}
-          <div class="ai-history-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(ans.explanation || "Không có lời giải thích")}</div>
-          <div style="font-size: 10px; color: #64748b; margin-top: 4px; text-align: right;">Độ tin cậy: ${ans.confidence || 98}% • ${ans.time || ""}</div>
-        </div>
-      `).join("")
-      : `<div style="text-align:center;padding:20px;color:#94a3b8;font-size:12px;">Chưa có câu hỏi nào được lưu trong bài thi này.</div>`;
+        `;
+      });
+    } else {
+      answersListHtml = `<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px;">Chưa có câu hỏi nào được lưu trong bài thi này.</div>`;
+    }
 
     modal.innerHTML = `
       <div class="ai-card-header">
@@ -5313,6 +5544,24 @@
   }
 
   function showReviewModal(data) {
+    if (isToolbarHidden) return;
+
+    // 1. Tuyệt đối không mở modal dò bài khi đang ở trang chủ (#/home)
+    const isHome = window.location.hash.includes("home") || window.location.href.includes("#/home");
+    if (isHome) {
+      const existing = document.getElementById("ai-review-modal");
+      if (existing) existing.remove();
+      return;
+    }
+
+    // 2. Tuyệt đối không mở modal rỗng khi tổng số câu = 0
+    const totalCount = data.total ?? (data.answeredCount ?? 0) + (data.unansweredCount ?? 0);
+    if (!data.loading && totalCount === 0) {
+      const existing = document.getElementById("ai-review-modal");
+      if (existing) existing.remove();
+      return;
+    }
+
     let modal = document.getElementById("ai-review-modal");
     if (!modal) {
       modal = document.createElement("div");
@@ -5476,6 +5725,9 @@
    */
   async function submitCompletedTest() {
     console.log("[TestSubmit] 🚀 Đang tự động nộp bài thi (Submit Test)...");
+    // Xuất và tải về toàn bộ câu hỏi/đáp án của bài thi vào 1 file duy nhất
+    await finalizeAndDownloadActiveExamSession("submit_completed_test");
+
     showReviewModal({
       loading: true,
       message: "🎉 Đã hoàn thành 100% câu hỏi! Đang tự động nộp bài kiểm tra (Submit Test)..."
@@ -5515,6 +5767,8 @@
 
   function closeCompletedTestWindow(keepAutoRunning = false) {
     console.log("[TestSubmit] 🏁 Bài kiểm tra đã hoàn thành!");
+    finalizeAndDownloadActiveExamSession("close_completed_test_window");
+
     if (!keepAutoRunning) {
       stopAutoNextLoop();
       stopMasterAuto();
@@ -5533,5 +5787,26 @@
       triggerSmartClick(closeBtn);
     }
   }
+
+  // Lắng nghe khi người dùng bấm nút Nộp bài / Kết thúc bài thi thủ công trên trang
+  document.addEventListener("click", (e) => {
+    try {
+      const btn = e.target.closest("button, input[type='button'], input[type='submit'], a, div[role='button']");
+      if (!btn || isAiElement(btn)) return;
+      const t = (btn.innerText || btn.value || btn.title || "").trim().toLowerCase();
+      const id = (btn.id || "").toLowerCase();
+      const cl = (btn.className || "").toString().toLowerCase();
+      const isSubmitBtn = (
+        t === "submit test" || t === "submit" || t === "nộp bài" || t === "finish test" || t === "end test" ||
+        id.includes("submittest") || cl.includes("submittest") || id.includes("btnsubmit") || cl.includes("btnsubmit")
+      );
+      if (isSubmitBtn) {
+        console.log("[History] 🎯 Phát hiện người dùng nhấn nút nộp bài / kết thúc bài thi:", btn);
+        setTimeout(() => {
+          finalizeAndDownloadActiveExamSession("user_manual_submit");
+        }, 800);
+      }
+    } catch (err) {}
+  }, true);
 })();
 

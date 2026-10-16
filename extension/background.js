@@ -95,9 +95,15 @@ async function loadAudioBase64(audioObj) {
   if (audioObj.base64) return audioObj;
   try {
     console.log(`[Background] 📥 Đang tải audio theo nhu cầu: ${audioObj.url}`);
-    const res = await fetch(audioObj.url);
-    if (!res.ok) return audioObj;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(audioObj.url, { signal: controller.signal });
+    if (!res.ok) {
+      clearTimeout(timer);
+      return audioObj;
+    }
     const blob = await res.blob();
+    clearTimeout(timer);
     // Giới hạn tối đa 12MB để bảo vệ bộ nhớ trình duyệt
     if (blob.size > 12 * 1024 * 1024) {
       console.warn(`[Background] Bỏ qua file audio quá lớn (${Math.round(blob.size/1024/1024)}MB) để chống tràn RAM.`);
@@ -340,11 +346,11 @@ async function forwardToBackend(payload) {
     try {
       console.log(`[Background] 📥 Đang tải audioUrl trực tiếp bằng Service Worker: ${payload.audioUrl}`);
       const audioController = new AbortController();
-      const audioTimeout = setTimeout(() => audioController.abort(), 8000);
+      const audioTimeout = setTimeout(() => audioController.abort(), 3500);
       const res = await fetch(payload.audioUrl, { signal: audioController.signal });
-      clearTimeout(audioTimeout);
       if (res.ok) {
         const blob = await res.blob();
+        clearTimeout(audioTimeout);
         const mime = blob.type || (payload.audioUrl.toLowerCase().includes(".wav") ? "audio/wav" : "audio/mp3");
         const arrayBuf = await blob.arrayBuffer();
         payload.audioBase64 = bufferToBase64(arrayBuf, mime);
@@ -357,6 +363,8 @@ async function forwardToBackend(payload) {
         };
         chrome.storage.local.set({ lastCapturedAudio });
         console.log(`[Background] ✅ Service Worker đã tải xong audio (${mime})!`);
+      } else {
+        clearTimeout(audioTimeout);
       }
     } catch (e) {
       console.warn("[Background] Không thể nạp audio từ URL:", e.message);
@@ -379,12 +387,12 @@ async function forwardToBackend(payload) {
   console.log(`[Background] 🚀 Gửi bài tập tới Backend: ${backendUrl}/api/solve (Có Audio: ${Boolean(payload.audioBase64)})`);
 
   let lastError = null;
-  const maxRetries = 2;
+  const maxRetries = 1;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 50000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
 
       const response = await fetch(`${backendUrl}/api/solve`, {
         method: "POST",
@@ -410,7 +418,7 @@ async function forwardToBackend(payload) {
       lastError = error;
       console.warn(`[Background] Lần thử ${attempt}/${maxRetries} thất bại khi kết nối Backend:`, error.message);
       if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
   }
