@@ -243,6 +243,9 @@
           isToolbarMinimized = Boolean(changes.ai_toolbar_minimized.newValue);
           updateToolbarDisplay();
         }
+        if (changes.toeic_test_history !== undefined || changes.toeic_active_session_id !== undefined) {
+          updateHistoryModalLive();
+        }
       }
     });
   } catch (e) {}
@@ -5164,6 +5167,11 @@
       await chrome.storage.local.set({ toeic_test_history: updatedHistory });
       console.log(`[History] 📝 Đã gom ${session.answers.length} câu hỏi của bài thi vào DUY NHẤT 1 file [${session.title}] (Session: ${session.id}) - Đang tích lũy, khi kết thúc bài mới tải file`);
 
+      // Cập nhật giao diện Lịch Sử theo thời gian thực (Realtime Live Update) nếu modal đang mở trên màn hình
+      try {
+        updateHistoryModalLive(session.id);
+      } catch (e) {}
+
       // TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (nếu có kết nối Backend)
       chrome.runtime.sendMessage({
         action: "sync_history_to_server",
@@ -5383,6 +5391,13 @@
     }
   }
 
+  // Cập nhật giao diện Lịch Sử theo thời gian thực (Realtime Live Update) nếu modal đang mở trên màn hình
+  async function updateHistoryModalLive(targetSessionId = null) {
+    const modal = document.getElementById("ai-history-modal");
+    if (!modal) return;
+    await renderHistoryModalContent(modal, targetSessionId, true);
+  }
+
   async function showHistoryModal(targetSessionId = null) {
     let modal = document.getElementById("ai-history-modal");
     if (!modal) {
@@ -5390,7 +5405,24 @@
       modal.id = "ai-history-modal";
       modal.className = "notranslate";
       document.body.appendChild(modal);
+      setupDraggable(modal);
+      setupResizable(modal);
     }
+
+    await renderHistoryModalContent(modal, targetSessionId, false);
+  }
+
+  async function renderHistoryModalContent(modal, targetSessionId = null, isLive = false) {
+    if (!modal) return;
+
+    // 1. Ghi nhớ trạng thái cuộn & session đang chọn trước khi render lại
+    const selectEl = modal.querySelector("#ai-history-session-select");
+    const currentSelectedSessionId = selectEl ? selectEl.value : null;
+
+    const listEl = modal.querySelector("#ai-history-list");
+    const prevScrollTop = listEl ? listEl.scrollTop : null;
+    const isNearBottom = listEl ? (listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 70) : false;
+    const prevAnswersCount = parseInt(modal.dataset.answersCount || "0", 10);
 
     const data = await chrome.storage.local.get(["toeic_test_history", "toeic_active_session_id"]);
     const history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
@@ -5399,7 +5431,7 @@
       modal.innerHTML = `
         <div class="ai-card-header">
           <div class="ai-card-title"><span>📜</span> Lịch Sử Đáp Án Bài Thi</div>
-          <button class="ai-card-close" onclick="document.getElementById('ai-history-modal').remove()">&times;</button>
+          <button class="ai-card-close" id="ai-history-close-btn">&times;</button>
         </div>
         <div style="padding: 30px 16px; text-align: center; color: #94a3b8;">
           <div style="font-size: 32px; margin-bottom: 12px;">📂</div>
@@ -5409,12 +5441,20 @@
           </div>
         </div>
       `;
+      modal.querySelector("#ai-history-close-btn")?.addEventListener("click", () => modal.remove());
       return;
     }
 
-    // Lấy bài thi cần hiển thị (mặc định bài thi đang kích hoạt hoặc bài thi gần nhất)
-    const currentSessionId = data.toeic_active_session_id;
-    let activeSession = history.find(s => s.id === (targetSessionId || currentSessionId)) || history[0];
+    // Xác định session cần hiển thị
+    const currentActiveSessionId = data.toeic_active_session_id;
+    let sessionToUse = targetSessionId || currentSelectedSessionId || currentActiveSessionId;
+    let activeSession = history.find(s => s.id === sessionToUse) || history[0];
+
+    // Cập nhật dataset
+    const newAnswersCount = activeSession.answers?.length || 0;
+    const hasNewAnswer = isLive && (newAnswersCount > prevAnswersCount);
+    modal.dataset.answersCount = String(newAnswersCount);
+    modal.dataset.activeSessionId = activeSession.id;
 
     // Tạo danh sách chọn bài thi
     const sessionOptionsHtml = history.map(s => {
@@ -5427,12 +5467,14 @@
     if (activeSession.answers && activeSession.answers.length > 0) {
       // Nhóm câu hỏi theo từng Part của bài thi
       const partsMap = new Map();
-      activeSession.answers.forEach(ans => {
+      activeSession.answers.forEach((ans, ansIdx) => {
         const pKey = ans.part || getQuestionPartName(ans.questionNum);
         if (!partsMap.has(pKey)) {
           partsMap.set(pKey, []);
         }
-        partsMap.get(pKey).push(ans);
+        // Đánh dấu nếu là câu vừa mới thêm vào trong lần cập nhật trực tiếp này
+        const isNewItem = hasNewAnswer && (ansIdx >= prevAnswersCount);
+        partsMap.get(pKey).push({ ...ans, isNewItem });
       });
 
       partsMap.forEach((ansList, partTitle) => {
@@ -5452,11 +5494,12 @@
             </div>
             <div style="display:flex;flex-direction:column;gap:7px;">
               ${ansList.map(ans => `
-                <div class="ai-history-item" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px 11px;">
+                <div class="ai-history-item ${ans.isNewItem ? 'ai-history-item-new' : ''}" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px 11px;">
                   <div class="ai-history-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                       <span class="ai-history-qnum" style="font-weight:700;font-size:12.5px;color:#f8fafc;">${escapeHtml(ans.questionNum || "Câu ?")}</span>
                       <span style="font-size:10px;color:#64748b;">${ans.time || ""}</span>
+                      ${ans.isNewItem ? '<span style="font-size:9.5px;background:rgba(34,197,94,0.25);color:#4ade80;padding:1px 5px;border-radius:6px;font-weight:700;">MỚI</span>' : ''}
                     </div>
                     <span class="ai-history-badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:2px 8px;border-radius:12px;font-weight:700;font-size:11.5px;">
                       👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}
@@ -5477,9 +5520,13 @@
 
     modal.innerHTML = `
       <div class="ai-card-header">
-        <div class="ai-card-title">
-          <span>📜</span> Lịch Sử Đáp Án Bài Thi 
-          <span style="font-size:11px;background:rgba(56,189,248,0.2);color:#38bdf8;padding:1px 6px;border-radius:10px;font-weight:700;">${activeSession.answers?.length || 0} câu</span>
+        <div class="ai-card-title" style="display:flex;align-items:center;gap:7px;">
+          <span>📜</span>
+          <span>Lịch Sử Đáp Án</span>
+          <span style="font-size:11px;background:rgba(56,189,248,0.2);color:#38bdf8;padding:1px 6px;border-radius:10px;font-weight:700;">${newAnswersCount} câu</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#22c55e;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);padding:1px 6px;border-radius:10px;font-weight:700;" title="Tự động đồng bộ cập nhật theo thời gian thực">
+            <span class="ai-live-dot"></span> Realtime
+          </span>
         </div>
         <button class="ai-card-close" id="ai-history-close-btn">&times;</button>
       </div>
@@ -5553,8 +5600,15 @@
       }
     });
 
-    setupDraggable(modal);
-    setupResizable(modal);
+    // Khôi phục mượt mà vị trí cuộn
+    const newListEl = modal.querySelector("#ai-history-list");
+    if (newListEl && prevScrollTop !== null) {
+      if (isNearBottom || hasNewAnswer) {
+        newListEl.scrollTop = newListEl.scrollHeight;
+      } else {
+        newListEl.scrollTop = prevScrollTop;
+      }
+    }
   }
 
   function showReviewModal(data) {

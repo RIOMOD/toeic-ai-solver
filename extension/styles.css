@@ -722,4 +722,46 @@
   line-height: 1.35 !important;
 }
 
+@keyframes aiHistoryPulseNew {
+  0% {
+    background: rgba(59, 130, 246, 0.45) !important;
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
+    transform: scale(1.015);
+  }
+  100% {
+    background: #0f172a !important;
+    border-color: #1e293b !important;
+    box-shadow: none !important;
+    transform: scale(1);
+  }
+}
+
+.ai-history-item-new {
+  animation: aiHistoryPulseNew 2s ease-out !important;
+}
+
+@keyframes aiLivePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 6px #22c55e;
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+    box-shadow: 0 0 2px #22c55e;
+  }
+}
+
+.ai-live-dot {
+  display: inline-block !important;
+  width: 6.5px !important;
+  height: 6.5px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  animation: aiLivePulse 1.8s infinite ease-in-out !important;
+}
+
+
 
