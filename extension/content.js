@@ -2509,7 +2509,7 @@
               allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
             }
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 22s)")), 22000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 35s)")), 35000))
         ]);
       } catch (e) {
         solveErr = e;

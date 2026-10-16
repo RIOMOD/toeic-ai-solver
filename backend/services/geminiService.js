@@ -74,9 +74,15 @@ if (!defaultApiKey) {
   console.warn("⚠️ CẢNH BÁO: Chưa cấu hình GEMINI_API_KEY trong file backend/.env!");
 }
 
-// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất (gemini-flash-latest và gemini-3.5-flash luôn sẵn sàng 100%)
+// Bộ nhớ tạm thời loại trừ các model bị lỗi 429 (hết quota) hoặc 404 trong 10 phút
+const failedModelCooldown = new Map();
+
+// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, ưu tiên các model có quota dồi dào và hỗ trợ audio siêu tốc
 const CANDIDATE_MODELS = [
-  "gemini-flash-latest",
+  "gemini-3-flash-preview",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite-preview",
+  "gemini-flash-lite-latest",
   "gemini-3.5-flash",
   "gemini-3.8-flash",
   process.env.GEMINI_MODEL
@@ -222,6 +228,11 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
   for (const currentKey of keysToUse) {
     const client = new GoogleGenerativeAI(currentKey);
     for (const modelName of CANDIDATE_MODELS) {
+      const cooldownKey = `${currentKey.slice(-6)}_${modelName}`;
+      if (failedModelCooldown.has(cooldownKey) && failedModelCooldown.get(cooldownKey) > Date.now()) {
+        continue;
+      }
+
       try {
         console.log(`[GeminiService] 🚀 Đang gọi model: ${modelName}...`);
         const model = client.getGenerativeModel({
@@ -256,6 +267,9 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
       } catch (err) {
         console.warn(`[GeminiService] ⚠️ Model ${modelName} gặp sự cố (${err.message.slice(0, 120)}...). Chuyển ngay model tiếp theo...`);
         lastError = err;
+        if (/429|quota|not found|no longer available/i.test(err.message) || err.status === 429 || err.status === 404) {
+          failedModelCooldown.set(cooldownKey, Date.now() + 10 * 60 * 1000);
+        }
       }
     }
   }
