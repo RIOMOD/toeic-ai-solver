@@ -232,6 +232,17 @@
         } catch(e) {}
       }
 
+      // 7. Đặc thù Start Section trên ETS Test
+      if (detail.text && /start\s*section/i.test(detail.text)) {
+        try {
+          if (typeof window.startSection === 'function') window.startSection();
+          if (typeof window.StartSection === 'function') window.StartSection();
+          if (typeof window.NextSection === 'function') window.NextSection();
+          if (typeof window.doNext === 'function') window.doNext();
+          if (typeof window.btnStartSection_Click === 'function') window.btnStartSection_Click();
+        } catch (exFunc) {}
+      }
+
       console.log("[AI Shield] 🎯 Đã thực hiện Full Main World Click thành công cho phần tử:", target);
     } catch (err) {
       console.warn('[AI Shield Click Error]', err);

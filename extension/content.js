@@ -849,13 +849,16 @@
    * Kiểm tra xem trang hiện tại có phải là bài tập hoặc bài kiểm tra không
    */
   function isExerciseOrTestPage() {
+    if (getSectionTransitionButton()) {
+      return false; // Đang ở popup Start Section chuyển Part -> Không phải câu hỏi bài tập
+    }
     const url = window.location.href.toLowerCase();
     if (url.includes("learningarea") || url.includes("test.aspx") || url.includes("/runtime/") || url.includes("toeicolpc.com")) {
       return true;
     }
     const allText = getCachedPageText(1500);
     if (/(?:Question|Câu)\s*\d+/i.test(allText)) return true;
-    if (queryAllInDocs("input[type='radio'], input[type='checkbox'], select").length > 0) return true;
+    if (queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible)) return true;
     return false;
   }
 
@@ -868,11 +871,11 @@
       // 0. Luôn ưu tiên phát hiện và nhấn nút chuyển tiếp Section (Start Section) TRƯỚC HẾT!
       // (chạy liên tục để tự động vượt qua popup Start Section kể cả khi tạm dừng)
       try {
-        if (findAndClickSectionTransitionButton()) {
+        if (await findAndClickSectionTransitionButton()) {
           console.log("[AutoWatcher] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
           isSolvingCurrentQuestion = false;
           window._solvingStartTime = null;
-          await sleep(2000);
+          await sleep(1500);
           return;
         }
       } catch (e) {
@@ -884,12 +887,12 @@
         return;
       }
 
-      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 25 giây, tự động giải phóng & chọn đáp án dự phòng!
+      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 45 giây, tự động giải phóng & chọn đáp án dự phòng!
       if (isSolvingCurrentQuestion) {
         if (!window._solvingStartTime) {
           window._solvingStartTime = Date.now();
-        } else if (Date.now() - window._solvingStartTime > 25000) {
-          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >25s, tự động giải phóng khóa & chọn đáp án an toàn!");
+        } else if (Date.now() - window._solvingStartTime > 45000) {
+          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >45s, tự động giải phóng khóa & chọn đáp án an toàn!");
           isSolvingCurrentQuestion = false;
           window._solvingStartTime = null;
           try { ensureAnswerChecked(); } catch (e) {}
@@ -1015,15 +1018,9 @@
       }
 
       // 0a. Kiểm tra nếu có màn hình chuyển tiếp Section (Start Section)
-      if (findAndClickSectionTransitionButton()) {
+      if (await findAndClickSectionTransitionButton()) {
         console.log("[AutoNext] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
-        const waitStart = Date.now();
-        while (Date.now() - waitStart < 5000) {
-          await sleep(600);
-          const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
-          if (hasInputs) break;
-        }
-        await sleep(800);
+        await sleep(1000);
         continue;
       }
 
@@ -1242,16 +1239,10 @@
           dismissModals();
 
           // 0. Tự động xử lý các màn hình chuyển tiếp: Chọn test mode -> "Go" -> Chào mừng -> "Start" -> Directions -> "Next" -> "Start Section"
-          if (findAndClickSectionTransitionButton()) {
+          if (await findAndClickSectionTransitionButton()) {
             console.log("[MasterAuto] 🚀 Đã tự động kích hoạt nút chuyển tiếp màn hình thi!");
             recordProgress("section_transition_clicked");
-            const waitStart = Date.now();
-            while (Date.now() - waitStart < 5000) {
-              await sleep(600);
-              const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
-              if (hasInputs) break;
-            }
-            await sleep(800);
+            await sleep(1000);
             continue;
           }
 
@@ -2144,20 +2135,16 @@
    * Tự động phát hiện và nhấn nút chuyển tiếp Section / Part mới
    * Ví dụ: Khi kết thúc Part 2 chuyển sang Part 3 / Part 4 có màn hình giới thiệu kèm nút "Start Section"
    */
-  function findAndClickSectionTransitionButton() {
-    // 0. Nếu đang ở màn hình trang chủ / chọn bài (home), TUYỆT ĐỐI KHÔNG tự động bấm hay hiện card chuyển section
+  /**
+   * Trích xuất chính xác nút chuyển tiếp Section / Part mới nếu đang xuất hiện trên màn hình
+   */
+  function getSectionTransitionButton() {
     if (window.location.hash.includes("home") || window.location.href.includes("#/home")) {
-      return false;
+      return null;
     }
 
-    // Cooldown 1s để tránh kích hoạt dồn dập trong lúc trang đang tải
-    if (window._lastSectionTransitionClick && Date.now() - window._lastSectionTransitionClick < 1000) {
-      return false;
-    }
-
-    // 1. ƯU TIÊN SỐ 1: Tìm kiếm trực tiếp nút chuyển tiếp Section (Start Section, Begin Section, Start Part...)
     const candidates = queryAllInDocs(
-      "button, input[type='button'], input[type='submit'], [role='button'], a, div, span, p"
+      "button, a, input[type='button'], input[type='submit'], [role='button'], div, span, p"
     );
 
     for (const b of candidates) {
@@ -2169,10 +2156,9 @@
       const id = (b.id || "").toLowerCase();
       const cl = (b.className || "").toString().toLowerCase();
 
-      // Giới hạn độ dài văn bản để tránh chọn nhầm container bao trọn cả đoạn giới thiệu bài
-      const isShortText = normTxt.length > 0 && normTxt.length <= 40;
+      if (normTxt.length === 0 || normTxt.length > 40) continue;
 
-      const isStartSection = (isShortText && (
+      const isStartSection = (
         normTxt === "start section" || normTxt === "begin section" ||
         normTxt === "start part" || normTxt === "begin part" ||
         normTxt === "next section" || normTxt === "continue section" ||
@@ -2186,17 +2172,49 @@
         id.includes("startsection") || cl.includes("startsection") ||
         id.includes("btnstartsection") || cl.includes("btnstartsection") ||
         id.includes("btn-start") || cl.includes("btn-start")
-      ));
+      );
 
       if (isStartSection) {
-        console.log("[AutoSection] 🚀 Phát hiện nút chuyển tiếp Section! Tự động nhấn:", b, rawTxt);
-        window._lastSectionTransitionClick = Date.now();
-        triggerSmartClick(b);
-        try {
-          showAiToast("🚀 Tự động chuyển sang Section tiếp theo...", 2500);
-        } catch (e) {}
-        return true;
+        return b.closest('button, a, input, [role="button"]') || b;
       }
+    }
+
+    return null;
+  }
+
+  /**
+   * Tự động phát hiện và nhấn nút chuyển tiếp Section / Part mới
+   * Ví dụ: Khi kết thúc Part 1 chuyển sang Part 2 hoặc Part 3 có popup "Start Section"
+   */
+  async function findAndClickSectionTransitionButton() {
+    // 0. Nếu đang ở màn hình trang chủ / chọn bài (home), TUYỆT ĐỐI KHÔNG tự động bấm
+    if (window.location.hash.includes("home") || window.location.href.includes("#/home")) {
+      return false;
+    }
+
+    // 1. ƯU TIÊN SỐ 1: Quét nút Start Section
+    const btn = getSectionTransitionButton();
+    if (btn) {
+      console.log("[AutoSection] 🚀 Phát hiện nút chuyển tiếp Section! Tự động nhấn:", btn);
+      window._lastSectionTransitionClick = Date.now();
+      triggerSmartClick(btn);
+      try {
+        showAiToast("🚀 Tự động chuyển sang Section tiếp theo...", 2500);
+      } catch (e) {}
+
+      // CHỐT CHẶN AN TOÀN: Đợi tối đa 3.5 giây cho popup biến mất hẳn khỏi màn hình
+      const startWait = Date.now();
+      while (Date.now() - startWait < 3500) {
+        await sleep(400);
+        const still = getSectionTransitionButton();
+        if (!still) {
+          console.log("[AutoSection] 🎉 Nút Start Section đã biến mất thành công! Section mới đã mở.");
+          break;
+        }
+        // Nhấn bồi nếu popup chưa đóng
+        triggerSmartClick(still);
+      }
+      return true;
     }
 
     // 2. Nếu không có nút Start Section cụ thể, mới kiểm tra màn hình chào mừng / chọn mode / directions của bài kiểm tra
@@ -2453,18 +2471,14 @@
     if (cachedBubbleEl) cachedBubbleEl.classList.add("solving");
 
     try {
-      // 0. Tự động chuyển tiếp nếu đang ở màn hình giới thiệu Section (ví dụ Listening Part 3 / Part 4 có nút "Start Section")
-      if (findAndClickSectionTransitionButton()) {
+      // 0. Tự động chuyển tiếp nếu đang ở màn hình giới thiệu Section (ví dụ Listening Part 2 / Part 3 / Part 4 có nút "Start Section")
+      const transBtn = getSectionTransitionButton();
+      if (transBtn) {
         if (solveText) solveText.innerText = "Bắt đầu Section...";
-        showLoadingCard("🚀 Đang bắt đầu Section mới...");
-        const waitStart = Date.now();
-        while (Date.now() - waitStart < 5000) {
-          await sleep(600);
-          const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
-          if (hasInputs) break;
-        }
-        await sleep(800);
-        return triggerScanAndSolve(); // Giải ngay câu đầu tiên của Section mới!
+        console.log("[Content] 🚀 Đang ở màn hình Start Section, tự động kích hoạt chuyển tiếp...");
+        await findAndClickSectionTransitionButton();
+        await sleep(1500);
+        return { success: true, count: 0, solutions: [], transition: true };
       }
 
       // 0b. Kiểm tra nếu đang ở màn hình kết thúc bài test
@@ -2680,7 +2694,7 @@
               allowCachedAudio: questionsData.length > 1 // Tự động dùng chung audio cho cụm Part 3/4
             }
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 35s)")), 35000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 55s)")), 55000))
         ]);
       } catch (e) {
         solveErr = e;
@@ -2862,8 +2876,8 @@
       text = val;
     }
 
-    // 7. Tuyệt đối không để option là "on" hoặc rỗng
-    if (!text || text.toLowerCase() === 'on') {
+    // 7. Tuyệt đối không để option là "on", "true", "false", rỗng hoặc giá trị boolean
+    if (!text || /^(on|true|false|undefined|null|default)$/i.test(text.toLowerCase())) {
       const letter = String.fromCharCode(65 + oIdx);
       text = `(${letter})`;
     }
@@ -3304,6 +3318,14 @@
         target_type: "choice"
       });
     });
+
+    // ƯU TIÊN SỐ 1 TUYỆT ĐỐI CHO TOEIC:
+    // Nếu trang đã có câu hỏi trắc nghiệm radio (Part 1, 2, 3, 4, 5, 6, 7), TRẢ VỀ NGAY LẬP TỨC!
+    // Tuyệt đối không quét thêm thẻ select/dropdown/input phụ để tránh tạo ra câu hỏi bóng ma (như đáp án "true")
+    if (results.length > 0) {
+      console.log(`[Content] 🎯 Đã nhận diện chuẩn xác ${results.length} câu hỏi trắc nghiệm radio:`, results);
+      return results;
+    }
 
     // B. Native select dropdowns
     const selects = queryAllInDocs("select").filter(s => !isAiElement(s) && isElementVisible(s));
@@ -5478,6 +5500,7 @@
 
       // Cập nhật giao diện Lịch Sử theo thời gian thực (Realtime Live Update) nếu modal đang mở trên màn hình
       try {
+        currentSelectedSessionId = session.id;
         updateHistoryModalLive(session.id);
       } catch (e) {}
 
@@ -5767,9 +5790,9 @@
       return;
     }
 
-    // Xác định session cần hiển thị
+    // Xác định session cần hiển thị (Ưu tiên tuyệt đối active session của bài thi đang làm hiện tại)
     const currentActiveSessionId = data.toeic_active_session_id;
-    let sessionToUse = targetSessionId || currentSelectedSessionId || currentActiveSessionId;
+    let sessionToUse = targetSessionId || (isLive ? currentActiveSessionId : (currentSelectedSessionId || currentActiveSessionId));
     let activeSession = history.find(s => s.id === sessionToUse) || history[0];
 
     // 2. Dọn dẹp trùng lặp theo số câu, chuẩn hóa Part và sắp xếp tăng dần 1, 2, 3...

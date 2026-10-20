@@ -335,7 +335,19 @@ if (chrome.commands && chrome.commands.onCommand) {
 
 async function forwardToBackend(payload) {
   const storage = await chrome.storage.local.get(["backendUrl", "geminiApiKey", "lastCapturedAudio"]);
-  let backendUrl = (storage.backendUrl || DEFAULT_BACKEND_URL).replace(/\/$/, "");
+  let backendUrl = storage.backendUrl;
+  if (!backendUrl) {
+    try {
+      const localCheck = await fetch("http://localhost:5000/api/health", { method: "GET", signal: AbortSignal.timeout(600) });
+      if (localCheck.ok) {
+        backendUrl = "http://localhost:5000";
+      }
+    } catch (e) {}
+  }
+  if (!backendUrl) {
+    backendUrl = DEFAULT_BACKEND_URL;
+  }
+  backendUrl = backendUrl.replace(/\/$/, "");
 
   // Đính kèm custom Gemini API Key từ cài đặt Extension nếu có
   if (storage.geminiApiKey && !payload.apiKey) {
@@ -460,7 +472,7 @@ async function forwardToBackend(payload) {
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 50000);
 
       const response = await fetch(`${backendUrl}/api/solve`, {
         method: "POST",
