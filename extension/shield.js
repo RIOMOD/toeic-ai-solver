@@ -169,5 +169,19 @@
     };
   } catch (eXhr) {}
 
+  try {
+    const origFetch = window.fetch;
+    if (typeof origFetch === "function") {
+      window.fetch = function(resource, init) {
+        if (typeof resource === "string") {
+          notifyCapturedAudio(resource);
+        } else if (resource && resource.url) {
+          notifyCapturedAudio(resource.url);
+        }
+        return origFetch.apply(this, arguments);
+      };
+    }
+  } catch (eFetch) {}
+
   console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh & bộ bắt audio đã sẵn sàng!");
 })();

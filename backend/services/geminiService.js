@@ -74,8 +74,9 @@ if (!defaultApiKey) {
   console.warn("⚠️ CẢNH BÁO: Chưa cấu hình GEMINI_API_KEY trong file backend/.env!");
 }
 
-// Bộ nhớ tạm thời loại trừ các model bị lỗi 429 (hết quota) hoặc 404 trong 10 phút
+// Bộ nhớ tạm thời loại trừ các model bị lỗi hoặc key bị hết quota
 const failedModelCooldown = new Map();
+const failedKeyCooldown = new Map();
 
 // Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, ưu tiên các model có quota dồi dào và hỗ trợ audio siêu tốc
 const CANDIDATE_MODELS = [
@@ -246,8 +247,16 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
 
   // Vòng lặp xoay tua các key và model Flash để đảm bảo tốc độ nhanh nhất và tỷ lệ thành công 100%
   for (const currentKey of keysToUse) {
+    if (failedKeyCooldown.has(currentKey) && failedKeyCooldown.get(currentKey) > Date.now()) {
+      continue;
+    }
+
     const client = new GoogleGenerativeAI(currentKey);
+    let keyHitQuota = false;
+
     for (const modelName of CANDIDATE_MODELS) {
+      if (keyHitQuota) break;
+
       const cooldownKey = `${currentKey.slice(-6)}_${modelName}`;
       if (failedModelCooldown.has(cooldownKey) && failedModelCooldown.get(cooldownKey) > Date.now()) {
         continue;
@@ -285,9 +294,18 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
 
         return outputData;
       } catch (err) {
-        console.warn(`[GeminiService] ⚠️ Model ${modelName} gặp sự cố (${err.message.slice(0, 120)}...). Chuyển ngay model tiếp theo...`);
+        console.warn(`[GeminiService] ⚠️ Model ${modelName} gặp sự cố (${err.message.slice(0, 120)}...).`);
         lastError = err;
-        if (/429|quota|not found|no longer available/i.test(err.message) || err.status === 429 || err.status === 404) {
+
+        // Nếu gặp lỗi 429 Quota Exceeded của cả key, cooldown toàn bộ key và break ngay sang key tiếp theo (0ms latency)!
+        if (/429|quota|resource_exhausted/i.test(err.message) || err.status === 429) {
+          console.warn(`[GeminiService] ⛔ Key ${currentKey.slice(0, 8)}... đã chạm hạn mức Quota (429)! Cooldown key 15 phút và chuyển ngay sang Key tiếp theo!`);
+          failedKeyCooldown.set(currentKey, Date.now() + 15 * 60 * 1000);
+          keyHitQuota = true;
+          break;
+        }
+
+        if (/not found|no longer available|404/i.test(err.message) || err.status === 404) {
           failedModelCooldown.set(cooldownKey, Date.now() + 10 * 60 * 1000);
         }
       }

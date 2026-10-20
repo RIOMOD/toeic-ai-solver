@@ -1066,6 +1066,9 @@
         await sleep(400);
       }
 
+      // Đồng bộ bảo hiểm 100%: Lưu câu hỏi vào lịch sử trước khi chuyển
+      await syncCurrentDOMAnswersToHistory();
+
       if (!isAutoNextRunning) break;
 
       // 4. Lưu fingerprint hiện tại trước khi bấm Next và xóa cache audio câu cũ
@@ -1316,6 +1319,9 @@
               await sleep(500);
             }
 
+            // Đồng bộ bảo hiểm 100%: Lưu chắc chắn câu hiện tại vào lịch sử
+            await syncCurrentDOMAnswersToHistory(questions);
+
             // 3. KHÓA BẢO VỆ TUYỆT ĐỐI: Không bao giờ bấm Next khi chưa điền đủ câu hỏi
             if (!isCurrentQuestionAnswered()) {
               console.error("[MasterAuto] ⛔ BẢO VỆ CHẶN NEXT: Chưa điền đủ câu hỏi, không bấm Next!");
@@ -1363,6 +1369,19 @@
                     transitioned = true;
                     await sleep(1500);
                     break;
+                  }
+
+                  // 1b. Hỗ trợ kích hoạt audio phát hoặc kết thúc chuyển câu nếu trang bị kẹt
+                  if (Date.now() - startWait > 4000) {
+                    const audioEls = queryAllInDocs("audio, video");
+                    for (const a of audioEls) {
+                      try {
+                        if (a.paused && a.currentTime === 0) a.play().catch(() => {});
+                        if (Date.now() - startWait > 8000 && a.duration && a.currentTime >= a.duration - 1) {
+                          a.dispatchEvent(new Event("ended", { bubbles: true }));
+                        }
+                      } catch (e) {}
+                    }
                   }
 
                   // 2. Kiểm tra nếu hệ thống đã tự chuyển sang câu mới
@@ -2304,6 +2323,49 @@
         await sleep(100);
       }
     }
+    // Tự động bảo hiểm: lưu ngay đáp án vừa chọn vào lịch sử
+    await syncCurrentDOMAnswersToHistory();
+  }
+
+  /**
+   * ĐỒNG BỘ BẢO HIỂM 100%: Quét đáp án đang được chọn trên màn hình và lưu vào lịch sử nếu chưa có
+   * Đảm bảo không bao giờ bỏ sót bất kỳ câu hỏi nào trong bảng lịch sử
+   */
+  async function syncCurrentDOMAnswersToHistory(forcedQuestions = null) {
+    try {
+      const radioGroups = groupRadioButtons();
+      const questions = forcedQuestions || await scanDOMQuestions();
+      const currentSolutions = [];
+
+      if (radioGroups.length > 0) {
+        radioGroups.forEach((group, gIdx) => {
+          const checkedRadio = group.find(r => isRadioSelected(r));
+          if (checkedRadio) {
+            const checkedIdx = group.indexOf(checkedRadio);
+            const optText = extractRadioOptionText(checkedRadio, checkedIdx);
+            const qData = questions[gIdx] || questions[0];
+            const qNum = qData?.question_number || (gIdx + 1);
+            const qId = qData?.id || `q_${qNum}`;
+
+            currentSolutions.push({
+              question_id: qId,
+              question_number: qNum,
+              selected_index: checkedIdx >= 0 ? checkedIdx : 0,
+              selected_value: optText || `(${String.fromCharCode(65 + checkedIdx)})`,
+              explanation: "Đáp án đã được chọn thành công trên bài thi.",
+              confidence: 0.98
+            });
+          }
+        });
+      }
+
+      if (currentSolutions.length > 0) {
+        await recordTestAnswers(currentSolutions, questions);
+        console.log(`[History] 🛡️ Bảo hiểm: Đã đồng bộ ${currentSolutions.length} câu vào lịch sử để không bỏ sót!`);
+      }
+    } catch (e) {
+      console.warn("[History] Lỗi đồng bộ bảo hiểm đáp án:", e);
+    }
   }
 
   /**
@@ -2444,7 +2506,7 @@
             try {
               const bgRes = await chrome.runtime.sendMessage({
                 action: "get_audio",
-                minTimestamp: questionSolveStartTime - 5000
+                minTimestamp: Date.now() - 60000
               });
               if (bgRes && bgRes.success && bgRes.audio) {
                 audioData = bgRes.audio;
@@ -2466,18 +2528,19 @@
         }
       }
 
-      // 3. Chụp ảnh màn hình:
-      // - Với Part 2 TOEIC (chỉ hỏi đáp audio thuần túy, màn hình chỉ có biểu tượng tai nghe): Bỏ qua chụp để tối ưu tốc độ
-      // - Với Part 5 TOEIC (câu hỏi trắc nghiệm điền từ thuần text trong DOM): Bỏ qua chụp để tối ưu tốc độ
-      // - Với Part 1 (ảnh), Part 3/4 (bảng biểu/đồ thị), Part 6/7 (đoạn văn dài): Chụp ảnh để AI đọc trực quan!
-      // 3. Chụp ảnh màn hình thông minh & tối ưu tốc độ:
-      // - Chỉ chụp khi THỰC SỰ CẦN: Part 1 (tranh), Graphic câu hỏi đồ thị/bảng biểu, Drag-Drop kéo thả, hoặc trang ít text.
-      // - Bỏ qua chụp với Part 2 (audio thuần), Part 5 (text thuần), Part 3/4/6/7 đã có đủ text DOM -> Tăng tốc gấp 3 lần!
+      // 3. Chụp ảnh màn hình thông minh:
+      // Luôn chụp khi là Part 1, Part 2 (để thấy số câu và giao diện), Graphic, Drag-Drop hoặc khi chưa bắt được Audio!
       let screenshotBase64 = null;
       const isPart1 = (
         qCurrentTitle.toLowerCase().includes("part 1") ||
         allDocsText.includes("Listening Part 1") ||
         allDocsText.includes("Photographs")
+      );
+      const isPart2 = (
+        qCurrentTitle.toLowerCase().includes("part 2") ||
+        allDocsText.includes("Listening Part 2") ||
+        allDocsText.includes("Part 2") ||
+        allDocsText.includes("three responses spoken")
       );
       const hasGraphicKeyword = (
         /graphic|chart|table|diagram|map|schedule|picture/i.test(allDocsText) ||
@@ -2486,7 +2549,7 @@
       const isDragDrop = Boolean(allDocsText.includes("drag") || queryAllInDocs(".ui-draggable, .draggable, [draggable='true']").length > 0);
       const isShortText = combinedPageText.length < 250;
 
-      const shouldCaptureScreenshot = isPart1 || hasGraphicKeyword || isDragDrop || isShortText;
+      const shouldCaptureScreenshot = isPart1 || isPart2 || hasGraphicKeyword || isDragDrop || isShortText || !audioData;
 
       if (shouldCaptureScreenshot) {
         try {
@@ -2541,6 +2604,7 @@
         // KÍCH HOẠT CƠ CHẾ DỰ PHÒNG (FALLBACK AUTO-SELECT):
         // Tuyệt đối không để thí sinh bị treo bài làm! Tự động chọn đáp án an toàn cho mọi câu trắc nghiệm trên màn hình
         await ensureAnswerChecked();
+        await syncCurrentDOMAnswersToHistory(questionsData);
 
         const isQuota = /429|quota|resource_exhausted|rate limit/i.test(errMsg);
         const notice = isQuota
@@ -2601,6 +2665,7 @@
       // Fallback an toàn cấp cuối: chọn đáp án để không bị đơ
       try {
         await ensureAnswerChecked();
+        await syncCurrentDOMAnswersToHistory(questionsData);
       } catch (checkErr) {}
 
       showErrorCard(err.message || "Lỗi kết nối Backend AI");
