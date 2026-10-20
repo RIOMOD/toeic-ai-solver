@@ -879,12 +879,12 @@
         return;
       }
 
-      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 15 giây, tự động giải phóng & chọn đáp án dự phòng!
+      // Watchdog bảo vệ: Nếu bị treo trạng thái isSolvingCurrentQuestion quá 25 giây, tự động giải phóng & chọn đáp án dự phòng!
       if (isSolvingCurrentQuestion) {
         if (!window._solvingStartTime) {
           window._solvingStartTime = Date.now();
-        } else if (Date.now() - window._solvingStartTime > 15000) {
-          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >15s, tự động giải phóng khóa & chọn đáp án an toàn!");
+        } else if (Date.now() - window._solvingStartTime > 25000) {
+          console.warn("[AutoWatcher] ⏱️ Cảnh báo: Trạng thái giải bị treo >25s, tự động giải phóng khóa & chọn đáp án an toàn!");
           isSolvingCurrentQuestion = false;
           window._solvingStartTime = null;
           try { ensureAnswerChecked(); } catch (e) {}
@@ -2621,7 +2621,10 @@
 
       if (shouldCaptureScreenshot) {
         try {
-          const captureResp = await chrome.runtime.sendMessage({ action: "capture_tab" });
+          const captureResp = await Promise.race([
+            chrome.runtime.sendMessage({ action: "capture_tab" }),
+            new Promise(resolve => setTimeout(() => resolve(null), 3000))
+          ]);
           if (captureResp && captureResp.success && captureResp.dataUrl) {
             screenshotBase64 = captureResp.dataUrl;
             console.log(`[Content] 📸 Đã chụp ảnh màn hình bài tập (${Math.round(screenshotBase64.length / 1024)} KB) cho câu hỏi cần hình ảnh!`);
@@ -2656,7 +2659,7 @@
               audioUrl: audioUrl,
               audioBase64: audioData ? audioData.base64 : null,
               audioMime: audioData ? audioData.mime : "audio/mp3",
-              allowCachedAudio: false // Tuyệt đối không tự ý dùng audio cũ
+              allowCachedAudio: questionsData.length > 1 // Tự động dùng chung audio cho cụm Part 3/4
             }
           }),
           new Promise((_, reject) => setTimeout(() => reject(new Error("Quá thời gian chờ phản hồi từ AI Backend (Timeout 35s)")), 35000))
@@ -2851,7 +2854,7 @@
   }
 
   /**
-   * Quét tất cả radio buttons thực sự hiển thị trên màn hình bài tập
+   * Quét tất cả radio buttons thực sự hiển thị trên màn hình bài tập (hỗ trợ cả nội dung cuộn bên dưới)
    */
   function getVisibleTestRadios() {
     const docs = getAllExerciseDocuments();
@@ -2869,33 +2872,22 @@
         const docRadios = allDocRadios.filter(r => {
           if (isAiElement(r) || seenRadios.has(r)) return false;
 
-          // Bắt buộc radio phải nằm trên màn hình hiển thị thực tế (chống iframe preload/off-screen)
-          if (!isElementOnScreen(r)) return false;
+          // Bỏ qua radio thuộc phần tử thực sự display:none hoặc hidden toàn bộ
+          const style = win.getComputedStyle(r);
+          if (style && (style.display === 'none' || style.visibility === 'hidden') && !r.closest('label, tr, td, li, .choice, .option, table, div')) {
+            return false;
+          }
 
-          // 1. Radio có kích thước hiển thị trực tiếp
-          const rect = r.getBoundingClientRect();
-          if ((rect.width > 0 && rect.height > 0) || (r.offsetWidth > 0 && r.offsetHeight > 0)) {
-            const style = win.getComputedStyle(r);
-            if (style && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0') {
-              seenRadios.add(r);
-              return true;
+          const container = r.closest('label, tr, td, li, .choice, .option, table, div, p');
+          if (container) {
+            const cStyle = win.getComputedStyle(container);
+            if (cStyle && (cStyle.display === 'none' || cStyle.visibility === 'hidden')) {
+              return false;
             }
           }
 
-          // 2. Radio custom style (opacity: 0 hoặc width: 0) nhưng nằm trong container hiển thị (tr, td, li, label, .choice, .option)
-          const container = r.closest('tr, td, li, label, .choice, .option, table');
-          if (container && !isAiElement(container) && isElementOnScreen(container)) {
-            const cr = container.getBoundingClientRect();
-            if (cr.width > 0 && cr.height > 0) {
-              const cStyle = win.getComputedStyle(container);
-              if (cStyle && cStyle.display !== 'none' && cStyle.visibility !== 'hidden' && cStyle.opacity !== '0') {
-                seenRadios.add(r);
-                return true;
-              }
-            }
-          }
-
-          return false;
+          seenRadios.add(r);
+          return true;
         });
         radios.push(...docRadios);
       } catch (e) {}
@@ -2935,12 +2927,8 @@
     const allRadios = getVisibleTestRadios();
     if (allRadios.length === 0) return [];
 
-    // Nếu trang chỉ có <= 5 radio (chuẩn TOEIC 1 câu hỏi 4 lựa chọn A-B-C-D hoặc 3 lựa chọn A-B-C Part 2)
-    if (allRadios.length <= 5) {
-      return [allRadios];
-    }
-
-    // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 71 - 73 of 200" -> ĐÚNG 3 CÂU)
+    // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 21 - 23 of 100" -> ĐÚNG 3 CÂU)
+    // ƯU TIÊN SỐ 1: Tránh việc ngộ nhận chỉ có 1 câu hỏi khi trang có nhiều câu hỏi cùng lúc!
     const allDocs = getAllExerciseDocuments();
     const fullText = (getCurrentQuestionTitle() || "") + "\n" + allDocs.map(d => d.body?.innerText || "").join("\n");
     const headerRange = fullText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})/i);
@@ -2949,9 +2937,20 @@
       const qEnd = parseInt(headerRange[2], 10);
       if (!isNaN(qStart) && !isNaN(qEnd) && qEnd >= qStart) {
         const expectedCount = qEnd - qStart + 1;
-        if (expectedCount >= 1 && expectedCount <= 5) {
+        if (expectedCount >= 2 && expectedCount <= 6) {
+          // Nếu allRadios có thể chia đều theo expectedCount
+          if (allRadios.length % expectedCount === 0 && (allRadios.length / expectedCount >= 2 && allRadios.length / expectedCount <= 5)) {
+            const perQ = allRadios.length / expectedCount;
+            const groups = [];
+            for (let i = 0; i < allRadios.length; i += perQ) {
+              groups.push(allRadios.slice(i, i + perQ));
+            }
+            console.log(`[Content] 🎯 Nhận diện chuẩn xác ${expectedCount} câu hỏi từ dải tiêu đề "${headerRange[0]}" (${perQ} lựa chọn/câu):`, groups.length);
+            return groups;
+          }
+
+          // Nếu có đúng hoặc nhiều hơn expectedCount * 4 radio
           const perQ = (allRadios.length === expectedCount * 3) ? 3 : 4;
-          // Nếu có đúng expectedCount * perQ radio (hoặc bị dư do clone iframe)
           if (allRadios.length >= expectedCount * perQ) {
             const groups = [];
             for (let i = 0; i < expectedCount * perQ; i += perQ) {
@@ -2959,9 +2958,25 @@
             }
             console.log(`[Content] 🎯 Nhận diện chuẩn xác ${expectedCount} câu hỏi từ dải tiêu đề "${headerRange[0]}":`, groups.length);
             return groups;
+          } else if (allRadios.length >= expectedCount * 2) {
+            // Trường hợp một số radio bị cuộn: chia đều tối đa theo expectedCount
+            const approxPerQ = Math.floor(allRadios.length / expectedCount);
+            const groups = [];
+            for (let i = 0; i < expectedCount; i++) {
+              const start = i * approxPerQ;
+              const end = (i === expectedCount - 1) ? allRadios.length : (i + 1) * approxPerQ;
+              groups.push(allRadios.slice(start, end));
+            }
+            console.log(`[Content] 🎯 Chia dải ${expectedCount} câu hỏi theo headerRange (${allRadios.length} radios):`, groups.length);
+            return groups;
           }
         }
       }
+    }
+
+    // Nếu trang chỉ có <= 5 radio và không có header biểu thị dải câu hỏi
+    if (allRadios.length <= 5) {
+      return [allRadios];
     }
 
     // 1. Phân nhóm theo thuộc tính 'name' của radio nếu có các name rõ ràng (mỗi nhóm từ 2 đến 5 radio)
@@ -4258,8 +4273,9 @@
       if (radioGroups.length > 0) questionCount = radioGroups.length;
     }
 
-    // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, Câu 80 đến 82, 80-82 of 200)
-    const rangeMatch = combinedSearchText.match(/(?:Questions?|Câu)?\s*(\d{1,3})\s*(?:[-–—~～\s]|to|through|đến)+\s*(\d{1,3})(?:\s*of\s*\d+)?/i);
+    // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, Câu 80 đến 82, 80-82 of 200, Question 21 - 23)
+    const rangeMatch = combinedSearchText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—~～]|to|through|đến)+\s*(\d{1,3})\b/i) ||
+                       combinedSearchText.match(/\b(\d{1,3})\s*[-–—~～]\s*(\d{1,3})\s*(?:of|\/)\s*\d+\b/i);
     if (rangeMatch) {
       const q1 = parseInt(rangeMatch[1], 10);
       const q2 = parseInt(rangeMatch[2], 10);

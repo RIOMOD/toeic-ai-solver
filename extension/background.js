@@ -62,15 +62,17 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
-// Chuyển ArrayBuffer thành base64 an toàn trong Service Worker
+// Chuyển ArrayBuffer thành base64 an toàn trong Service Worker (chống Maximum call stack size)
 function bufferToBase64(buffer, mime = "audio/mp3") {
   const bytes = new Uint8Array(buffer);
   let binary = "";
   const len = bytes.byteLength;
-  const chunkSize = 16384;
+  const chunkSize = 8192;
   for (let i = 0; i < len; i += chunkSize) {
     const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-    binary += String.fromCharCode.apply(null, chunk);
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
   }
   return `data:${mime};base64,${btoa(binary)}`;
 }
@@ -143,13 +145,30 @@ if (chrome.webRequest && chrome.webRequest.onBeforeRequest) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // A. Chụp ảnh màn hình tab (sử dụng JPEG chất lượng 40% để giảm tải CPU và RAM cho máy yếu)
   if (request.action === "capture_tab") {
-    chrome.tabs.captureVisibleTab(null, { format: "jpeg", quality: 40 }, (dataUrl) => {
-      if (chrome.runtime.lastError || !dataUrl) {
-        sendResponse({ success: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
-      } else {
-        sendResponse({ success: true, dataUrl: dataUrl });
+    let responded = false;
+    const safeSend = (val) => {
+      if (!responded) {
+        responded = true;
+        clearTimeout(captureTimeout);
+        try { sendResponse(val); } catch (e) {}
       }
-    });
+    };
+    const captureTimeout = setTimeout(() => {
+      safeSend({ success: false, error: "Quá thời gian chụp màn hình (Timeout 3s)" });
+    }, 3000);
+
+    try {
+      const targetWinId = sender?.tab?.windowId || null;
+      chrome.tabs.captureVisibleTab(targetWinId, { format: "jpeg", quality: 40 }, (dataUrl) => {
+        if (chrome.runtime.lastError || !dataUrl) {
+          safeSend({ success: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
+        } else {
+          safeSend({ success: true, dataUrl: dataUrl });
+        }
+      });
+    } catch (e) {
+      safeSend({ success: false, error: e.message });
+    }
     return true; // async
   }
 
@@ -323,15 +342,23 @@ async function forwardToBackend(payload) {
     payload.apiKey = storage.geminiApiKey;
   }
 
-  // Tự động kiểm tra: Nếu local backend (http://localhost:5000) đang mở thì ưu tiên dùng ngay để đạt tốc độ tức thì và ổn định 100%
-  if (backendUrl !== "http://localhost:5000") {
+  // Tự động kiểm tra: Nếu local backend (http://localhost:5000 hoặc 127.0.0.1:5000) đang mở thì ưu tiên dùng ngay để đạt tốc độ tức thì và ổn định 100%
+  if (!backendUrl.includes("5000")) {
     try {
-      const localCheck = await fetch("http://localhost:5000/api/health", { method: "GET", signal: AbortSignal.timeout(800) });
+      const localCheck = await fetch("http://localhost:5000/api/health", { method: "GET", signal: AbortSignal.timeout(600) });
       if (localCheck.ok) {
-        console.log("[Background] ⚡ Phát hiện Local Backend đang chạy, tự động ưu tiên kết nối http://localhost:5000!");
+        console.log("[Background] ⚡ Phát hiện Local Backend đang chạy (localhost:5000), tự động ưu tiên kết nối!");
         backendUrl = "http://localhost:5000";
       }
-    } catch (e) {}
+    } catch (e) {
+      try {
+        const ipCheck = await fetch("http://127.0.0.1:5000/api/health", { method: "GET", signal: AbortSignal.timeout(600) });
+        if (ipCheck.ok) {
+          console.log("[Background] ⚡ Phát hiện Local Backend đang chạy (127.0.0.1:5000), tự động ưu tiên kết nối!");
+          backendUrl = "http://127.0.0.1:5000";
+        }
+      } catch (e2) {}
+    }
   }
 
   // 1b. Tải ảnh câu hỏi sắc nét qua Service Worker (vượt CORS) nếu chưa có Base64

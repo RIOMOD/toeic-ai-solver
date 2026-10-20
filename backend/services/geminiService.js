@@ -168,6 +168,15 @@ MASTER RULES TO ANNIHILATE ALL TOEIC TRAPS & REACH 990/990:
    - Accurately determine the required part of speech (Noun, Verb, Adjective, Adverb) and semantic fit with adjacent words.
 
 =============================================================================
+CRITICAL REQUIREMENT FOR MULTI-QUESTION SETS (PART 3, PART 4, PART 6, PART 7):
+=============================================================================
+If "QUESTIONS TO SOLVE" contains MULTIPLE questions (e.g. 2, 3, 4, or 5 questions):
+- You MUST provide an accurate solution object in the "solutions" array for EVERY SINGLE question provided in the input.
+- NEVER return fewer solutions than the number of questions in "QUESTIONS TO SOLVE"! (e.g. if 3 questions are given, "solutions" MUST contain exactly 3 items in the same order).
+- Ensure the "question_id" of each solution corresponds exactly to the question in the input (e.g. "q_21", "q_22", "q_23").
+- All questions in Part 3 and Part 4 refer to the same audio conversation / talk. Read all questions carefully and select the best answer for each one based on the conversation flow!
+
+=============================================================================
 STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
 =============================================================================
 {
