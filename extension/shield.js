@@ -120,6 +120,129 @@
     }
   });
 
+  // H. Lắng nghe CustomEvent từ Content Script để thực hiện Click chân thực và đầy đủ quyền hạn trong MAIN WORLD
+  // Hỗ trợ tuyệt đối cho ASP.NET WebForms (__doPostBack), inline onclick, href="javascript:...", jQuery trigger và các nút chuyển tiếp Section (Start Section)
+  window.addEventListener('ai_trigger_click', function(e) {
+    try {
+      const detail = e.detail || {};
+      let el = null;
+      if (detail.uid) {
+        el = document.querySelector(`[data-ai-click="${detail.uid}"]`);
+      }
+      if (!el && detail.selector) {
+        try { el = document.querySelector(detail.selector); } catch(ex) {}
+      }
+      if (!el && detail.text) {
+        const textToFind = detail.text.trim().toLowerCase();
+        const allCandidates = document.querySelectorAll("button, a, input, div, span, [role='button']");
+        for (const cand of allCandidates) {
+          const t = (cand.innerText || cand.value || "").trim().toLowerCase();
+          if (t === textToFind || t.includes(textToFind)) {
+            el = cand;
+            break;
+          }
+        }
+      }
+
+      if (!el) return;
+
+      const target = el.closest('button, a, input, [role="button"]') || el;
+      const rect = target.getBoundingClientRect();
+      const cx = (rect.width > 0 && rect.left >= 0) ? (rect.left + rect.width / 2) : 150;
+      const cy = (rect.height > 0 && rect.top >= 0) ? (rect.top + rect.height / 2) : 150;
+
+      const evtInit = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        detail: 1,
+        screenX: Math.round(window.screenX + cx),
+        screenY: Math.round(window.screenY + cy),
+        clientX: Math.round(cx),
+        clientY: Math.round(cy),
+        pageX: Math.round(window.scrollX + cx),
+        pageY: Math.round(window.scrollY + cy),
+        which: 1,
+        button: 0,
+        buttons: 1
+      };
+
+      // 1. Dispatch chuỗi sự kiện chuột/pointer chân thực với tọa độ chính xác
+      [target, el].forEach(elem => {
+        if (!elem) return;
+        try { elem.dispatchEvent(new PointerEvent('pointerover', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new MouseEvent('mouseover', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new PointerEvent('pointerenter', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new PointerEvent('pointerdown', evtInit)); } catch(e) {}
+        try { elem.dispatchEvent(new MouseEvent('mousedown', evtInit)); } catch(e) {}
+        try { if (typeof elem.focus === 'function') elem.focus(); } catch(e) {}
+        try { elem.dispatchEvent(new PointerEvent('pointerup', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new MouseEvent('mouseup', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new MouseEvent('click', { ...evtInit, buttons: 0 })); } catch(e) {}
+      });
+
+      // 2. Kích hoạt trực tiếp native click()
+      try {
+        if (typeof target.click === 'function') target.click();
+        else if (typeof el.click === 'function') el.click();
+      } catch(e) {}
+
+      // 3. Nếu là ASP.NET WebForms hoặc có inline onclick
+      const onclickAttr = target.getAttribute('onclick') || el.getAttribute('onclick');
+      if (onclickAttr) {
+        try {
+          new Function('event', onclickAttr).call(target, new MouseEvent('click', evtInit));
+        } catch(e) {
+          try { (0, eval)(onclickAttr); } catch(ex) {}
+        }
+      }
+      if (typeof target.onclick === 'function') {
+        try { target.onclick.call(target, new MouseEvent('click', evtInit)); } catch(e) {}
+      }
+
+      // 4. Kiểm tra href="javascript:..."
+      const href = target.getAttribute('href') || el.getAttribute('href');
+      if (href && /^javascript:/i.test(href)) {
+        const jsCode = decodeURIComponent(href.replace(/^javascript:/i, ''));
+        try {
+          new Function(jsCode)();
+        } catch(e) {
+          try { (0, eval)(jsCode); } catch(ex) {}
+        }
+      }
+
+      // 5. Kiểm tra ASP.NET __doPostBack trực tiếp
+      if (typeof window.__doPostBack === 'function') {
+        const nameOrId = target.getAttribute('name') || target.id || el.getAttribute('name') || el.id;
+        if (nameOrId && (href?.includes('__doPostBack') || onclickAttr?.includes('__doPostBack') || /start|section|btn/i.test(nameOrId))) {
+          try {
+            console.log("[AI Shield] ⚡ Kích hoạt trực tiếp window.__doPostBack cho:", nameOrId);
+            window.__doPostBack(nameOrId, '');
+          } catch(e) {}
+        }
+      }
+
+      // 6. Kích hoạt thông qua jQuery nếu trang có nạp jQuery
+      const $ = window.jQuery || window.$;
+      if ($) {
+        try {
+          $(target).trigger('click');
+          if (target !== el) $(el).trigger('click');
+        } catch(e) {}
+      }
+
+      console.log("[AI Shield] 🎯 Đã thực hiện Full Main World Click thành công cho phần tử:", target);
+    } catch (err) {
+      console.warn('[AI Shield Click Error]', err);
+    } finally {
+      if (detail && detail.uid) {
+        const marked = document.querySelectorAll(`[data-ai-click="${detail.uid}"]`);
+        marked.forEach(m => m.removeAttribute('data-ai-click'));
+      }
+    }
+  });
+
   // G. Bắt tức thì URL âm thanh bài nghe (Audio Capture) ở Main World
   function notifyCapturedAudio(url) {
     if (!url || typeof url !== "string") return;

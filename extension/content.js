@@ -875,7 +875,7 @@
         console.log("[AutoWatcher] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
         isSolvingCurrentQuestion = false;
         window._solvingStartTime = null;
-        await sleep(1800);
+        await sleep(2500);
         return;
       }
 
@@ -1012,7 +1012,13 @@
       // 0a. Kiểm tra nếu có màn hình chuyển tiếp Section (Start Section)
       if (findAndClickSectionTransitionButton()) {
         console.log("[AutoNext] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
-        await sleep(1800);
+        const waitStart = Date.now();
+        while (Date.now() - waitStart < 5000) {
+          await sleep(600);
+          const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
+          if (hasInputs) break;
+        }
+        await sleep(800);
         continue;
       }
 
@@ -1089,7 +1095,7 @@
           await sleep(600);
           if (findAndClickSectionTransitionButton()) {
             transitioned = true;
-            await sleep(1500);
+            await sleep(2500);
             break;
           }
           const newFp = getQuestionFingerprint();
@@ -1123,7 +1129,7 @@
             // 1. Kiểm tra nếu có nút chuyển tiếp Section
             if (findAndClickSectionTransitionButton()) {
               transitioned = true;
-              await sleep(1500);
+              await sleep(2500);
               break;
             }
 
@@ -1234,7 +1240,13 @@
           if (findAndClickSectionTransitionButton()) {
             console.log("[MasterAuto] 🚀 Đã tự động kích hoạt nút chuyển tiếp màn hình thi!");
             recordProgress("section_transition_clicked");
-            await sleep(1800);
+            const waitStart = Date.now();
+            while (Date.now() - waitStart < 5000) {
+              await sleep(600);
+              const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
+              if (hasInputs) break;
+            }
+            await sleep(800);
             continue;
           }
 
@@ -1339,7 +1351,7 @@
                 await sleep(600);
                 if (findAndClickSectionTransitionButton()) {
                   transitioned = true;
-                  await sleep(1500);
+                  await sleep(2500);
                   break;
                 }
                 const newFp = getQuestionFingerprint();
@@ -1367,7 +1379,7 @@
                   // 1. Kiểm tra nếu có nút chuyển tiếp Section
                   if (findAndClickSectionTransitionButton()) {
                     transitioned = true;
-                    await sleep(1500);
+                    await sleep(2500);
                     break;
                   }
 
@@ -1814,18 +1826,39 @@
     } catch (e) {}
 
     const win = el.ownerDocument?.defaultView || window;
-    const doc = el.ownerDocument || document;
     const target = el.closest('button, a, input, [role="button"]') || el;
 
-    const opts = { bubbles: true, cancelable: true, view: win, clientX: 10, clientY: 10 };
+    const rect = target.getBoundingClientRect();
+    const cx = (rect.width > 0 && rect.left >= 0) ? (rect.left + rect.width / 2) : 120;
+    const cy = (rect.height > 0 && rect.top >= 0) ? (rect.top + rect.height / 2) : 120;
+
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: win,
+      screenX: Math.round(win.screenX + cx),
+      screenY: Math.round(win.screenY + cy),
+      clientX: Math.round(cx),
+      clientY: Math.round(cy),
+      pageX: Math.round(win.scrollX + cx),
+      pageY: Math.round(win.scrollY + cy),
+      which: 1,
+      button: 0,
+      buttons: 1
+    };
 
     [el, target].forEach(elem => {
       if (!elem) return;
-      elem.dispatchEvent(new PointerEvent('pointerdown', opts));
-      elem.dispatchEvent(new MouseEvent('mousedown', opts));
-      elem.dispatchEvent(new PointerEvent('pointerup', opts));
-      elem.dispatchEvent(new MouseEvent('mouseup', opts));
-      elem.dispatchEvent(new MouseEvent('click', opts));
+      try { elem.dispatchEvent(new PointerEvent('pointerover', { ...opts, buttons: 0 })); } catch (e) {}
+      try { elem.dispatchEvent(new MouseEvent('mouseover', { ...opts, buttons: 0 })); } catch (e) {}
+      try { elem.dispatchEvent(new PointerEvent('pointerenter', { ...opts, buttons: 0 })); } catch (e) {}
+      try { elem.dispatchEvent(new PointerEvent('pointerdown', opts)); } catch (e) {}
+      try { elem.dispatchEvent(new MouseEvent('mousedown', opts)); } catch (e) {}
+      try { if (typeof elem.focus === 'function') elem.focus(); } catch (e) {}
+      try { elem.dispatchEvent(new PointerEvent('pointerup', { ...opts, buttons: 0 })); } catch (e) {}
+      try { elem.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 })); } catch (e) {}
+      try { elem.dispatchEvent(new MouseEvent('click', { ...opts, buttons: 0 })); } catch (e) {}
       if (typeof elem.click === 'function') {
         try { elem.click(); } catch (e) {}
       }
@@ -1835,6 +1868,19 @@
     try {
       if (typeof target.onclick === 'function') {
         target.onclick.call(target, new MouseEvent('click', opts));
+      }
+    } catch (e) {}
+
+    // 2. Kích hoạt thông qua Main World Shield (đầy đủ quyền hạn Main World: jQuery, ASP.NET __doPostBack, javascript: href)
+    try {
+      const uid = "ai_click_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+      target.setAttribute("data-ai-click", uid);
+      el.setAttribute("data-ai-click", uid);
+      const text = (target.innerText || el.innerText || target.value || el.value || "").trim();
+      const clickDetail = { uid, text };
+      win.dispatchEvent(new CustomEvent("ai_trigger_click", { detail: clickDetail }));
+      if (win !== window) {
+        window.dispatchEvent(new CustomEvent("ai_trigger_click", { detail: clickDetail }));
       }
     } catch (e) {}
 
@@ -2084,13 +2130,14 @@
       return false;
     }
 
-    // 0b. Kiểm tra màn hình chào mừng / chọn mode / directions của bài kiểm tra trước
-    if (findAndClickTestIntroButtons()) {
-      return true;
+    // Cooldown 1.5s để tránh kích hoạt dồn dập trong lúc trang đang tải
+    if (window._lastSectionTransitionClick && Date.now() - window._lastSectionTransitionClick < 1500) {
+      return false;
     }
 
+    // 1. ƯU TIÊN HÀNG ĐẦU: Tìm kiếm trực tiếp nút chuyển tiếp Section (Start Section, Begin Section)
     const candidates = queryAllInDocs(
-      "button, input[type='button'], input[type='submit'], [role='button'], a[class*='btn' i], a[class*='button' i], [class*='btn' i], [class*='start' i], [id*='start' i]"
+      "button, input[type='button'], input[type='submit'], [role='button'], a, div[class*='btn' i], div[class*='button' i], span[class*='btn' i], [class*='start' i], [id*='start' i], [class*='section' i], [id*='section' i]"
     );
 
     for (const b of candidates) {
@@ -2105,7 +2152,7 @@
       // Giới hạn độ dài văn bản để tránh chọn nhầm container bao trọn cả đoạn giới thiệu bài
       const isShortText = normTxt.length > 0 && normTxt.length < 50;
 
-      const isStartSection = isShortText && (
+      const isStartSection = (isShortText && (
         normTxt === "start section" || normTxt.includes("start section") ||
         normTxt === "begin section" || normTxt.includes("begin section") ||
         normTxt === "next section" || normTxt.includes("next section") ||
@@ -2121,15 +2168,24 @@
         id.includes("startsection") || cl.includes("startsection") ||
         id.includes("btnstartsection") || cl.includes("btnstartsection") ||
         id.includes("btn-start") || cl.includes("btn-start")
+      )) || (
+        /start\s*section/i.test(normTxt) || /begin\s*section/i.test(normTxt)
       );
 
       if (isStartSection) {
         console.log("[AutoSection] 🚀 Phát hiện nút chuyển tiếp Section! Tự động nhấn:", b);
+        window._lastSectionTransitionClick = Date.now();
         showLoadingCard("🚀 Đang tự động chuyển sang Section tiếp theo...");
         triggerSmartClick(b);
         return true;
       }
     }
+
+    // 2. Nếu không có nút Start Section cụ thể, mới kiểm tra màn hình chào mừng / chọn mode / directions của bài kiểm tra
+    if (findAndClickTestIntroButtons()) {
+      return true;
+    }
+
     return false;
   }
 
@@ -2383,7 +2439,13 @@
       if (findAndClickSectionTransitionButton()) {
         if (solveText) solveText.innerText = "Bắt đầu Section...";
         showLoadingCard("🚀 Đang bắt đầu Section mới...");
-        await sleep(2000);
+        const waitStart = Date.now();
+        while (Date.now() - waitStart < 5000) {
+          await sleep(600);
+          const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
+          if (hasInputs) break;
+        }
+        await sleep(800);
         return triggerScanAndSolve(); // Giải ngay câu đầu tiên của Section mới!
       }
 
@@ -2413,7 +2475,13 @@
       if (questionsData.length === 0) {
         if (findAndClickSectionTransitionButton()) {
           if (solveText) solveText.innerText = "Chuyển tiếp...";
-          await sleep(2000);
+          const waitStart = Date.now();
+          while (Date.now() - waitStart < 5000) {
+            await sleep(600);
+            const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
+            if (hasInputs) break;
+          }
+          await sleep(800);
           return triggerScanAndSolve();
         }
 
