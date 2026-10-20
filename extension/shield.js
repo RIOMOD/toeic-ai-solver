@@ -120,7 +120,27 @@
     }
   });
 
-  // H. Lắng nghe CustomEvent từ Content Script để thực hiện Click chân thực và đầy đủ quyền hạn trong MAIN WORLD
+  // H. Lắng nghe CustomEvent chọn radio button an toàn, chuẩn xác trong MAIN WORLD
+  window.addEventListener('ai_check_radio', function(e) {
+    try {
+      const detail = e.detail || {};
+      if (!detail.uid) return;
+      const radio = document.querySelector(`[data-ai-radio="${detail.uid}"]`);
+      if (radio && radio.tagName === 'INPUT') {
+        radio.checked = true;
+        const $ = window.jQuery || window.$;
+        if ($) {
+          try {
+            $(radio).prop('checked', true).trigger('change');
+          } catch(ex) {}
+        }
+      }
+    } catch (err) {
+      console.warn('[AI Shield Radio Error]', err);
+    }
+  });
+
+  // I. Lắng nghe CustomEvent từ Content Script để thực hiện Click chân thực và đầy đủ quyền hạn trong MAIN WORLD
   // Hỗ trợ tuyệt đối cho ASP.NET WebForms (__doPostBack), inline onclick, href="javascript:...", jQuery trigger và các nút chuyển tiếp Section (Start Section)
   window.addEventListener('ai_trigger_click', function(e) {
     try {

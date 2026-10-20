@@ -1895,8 +1895,9 @@
    */
   function isRadioSelected(r) {
     if (!r) return false;
-    if (r.checked) return true;
-    if (r.getAttribute && (r.getAttribute('checked') === 'checked' || r.getAttribute('checked') === 'true')) return true;
+    if (r.tagName === "INPUT") {
+      return Boolean(r.checked);
+    }
     if (r.getAttribute && r.getAttribute('aria-checked') === 'true') return true;
     const parent = r.closest('label, tr, td, li, .choice, .option');
     if (parent && (parent.classList.contains('selected') || parent.classList.contains('checked') || parent.classList.contains('active') || parent.classList.contains('ui-state-active'))) {
@@ -1918,7 +1919,7 @@
     const win = radio.ownerDocument?.defaultView || window;
     const doc = radio.ownerDocument || document;
 
-    // Xử lý các nút trắc nghiệm custom (button, div, label, li)
+    // A. Xử lý các nút trắc nghiệm custom (button, div, label, li không phải thẻ input radio thật)
     if (radio.tagName !== "INPUT") {
       triggerSmartClick(radio);
       try { radio.setAttribute('aria-checked', 'true'); } catch (e) {}
@@ -1927,44 +1928,59 @@
       return;
     }
 
-    // 1. Gán thuộc tính checked
-    radio.checked = true;
-    try { radio.setAttribute('checked', 'checked'); } catch (e) {}
-    try { radio.setAttribute('aria-checked', 'true'); } catch (e) {}
+    // B. XỬ LÝ CHUẨN XÁC VÀ DỨT KHOÁT CHO THẺ <input type="radio">
+    // 1. Uncheck các radio anh em trong cùng nhóm
+    const groupName = radio.name;
+    if (groupName) {
+      try {
+        const siblings = doc.querySelectorAll(`input[type="radio"][name="${groupName}"]`);
+        siblings.forEach(sib => {
+          if (sib !== radio) {
+            sib.checked = false;
+          }
+        });
+      } catch (eSib) {}
+    }
 
-    // 2. Kích hoạt native events
+    // 2. Trực tiếp thiết lập radio.checked = true
+    radio.checked = true;
+
+    // 3. Kích hoạt native click() một lần duy nhất
+    try {
+      if (typeof radio.focus === 'function') radio.focus();
+    } catch (e) {}
+    try {
+      radio.click();
+    } catch (e) {}
+
+    // 4. Kiểm tra chốt chặn: nếu sau khi click vẫn chưa checked (do event handler nào hủy hoặc revert)
+    if (!radio.checked) {
+      radio.checked = true;
+      radio.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: win }));
+    }
+
+    // 5. Phát sinh sự kiện input và change để framework (ASP.NET, React, Vue, jQuery) nhận biết
     radio.dispatchEvent(new Event('input', { bubbles: true }));
     radio.dispatchEvent(new Event('change', { bubbles: true }));
-    radio.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: win }));
 
-    // 3. Tìm thẻ <label for="id"> liên kết với radio và click
-    if (radio.id) {
-      const label = doc.querySelector(`label[for="${radio.id}"]`);
-      if (label) {
-        label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: win }));
-        if (typeof label.click === 'function') label.click();
-      }
-    }
-
-    // 4. Tìm label hoặc tr/td cha chứa radio và click
-    const parentContainer = radio.closest('label, tr, td, li, .choice, .option');
-    if (parentContainer && parentContainer !== radio) {
-      parentContainer.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: win }));
-      if (parentContainer.tagName === 'LABEL' && typeof parentContainer.click === 'function') {
-        parentContainer.click();
-      }
-    }
-
-    // 5. Smart click
-    triggerSmartClick(radio);
-
-    // 6. Kích hoạt jQuery nếu trang dùng jQuery
+    // 6. Cập nhật qua jQuery nếu có
     try {
       const $ = win.jQuery || win.$;
       if ($) {
-        $(radio).prop('checked', true).trigger('change').trigger('click');
+        $(radio).prop('checked', true).trigger('change');
       }
     } catch (eJq) {}
+
+    // 7. Đồng bộ với Main World Shield (đảm bảo quyền hạn MAIN WORLD)
+    try {
+      const radioUid = "ai_radio_" + Date.now();
+      radio.setAttribute("data-ai-radio", radioUid);
+      const detail = { uid: radioUid };
+      win.dispatchEvent(new CustomEvent("ai_check_radio", { detail }));
+      if (win !== window) {
+        window.dispatchEvent(new CustomEvent("ai_check_radio", { detail }));
+      }
+    } catch (eShield) {}
 
     highlightElement(radio);
     await sleep(80);
@@ -2333,9 +2349,9 @@
   /**
    * Kiểm tra xem tất cả câu hỏi trên màn hình hiện tại đã được chọn/điền đáp án chưa
    */
-  function isCurrentQuestionAnswered() {
+  function isCurrentQuestionAnswered(allowWhileSolving = false) {
     // 0. Nếu AI đang trong tiến trình phân tích âm thanh, đọc đề hoặc đang giải
-    if (isSolvingCurrentQuestion) {
+    if (isSolvingCurrentQuestion && !allowWhileSolving) {
       return false;
     }
 
@@ -2434,7 +2450,11 @@
           const checkedRadio = group.find(r => isRadioSelected(r));
           if (checkedRadio) {
             const checkedIdx = group.indexOf(checkedRadio);
-            const optText = extractRadioOptionText(checkedRadio, checkedIdx);
+            let optText = extractRadioOptionText(checkedRadio, checkedIdx);
+            optText = (optText || "").replace(/\b(true|false)\b/gi, "").trim();
+            if (!optText || /^\(?[A-D]\)?$/i.test(optText)) {
+              optText = `(${String.fromCharCode(65 + checkedIdx)})`;
+            }
             const qData = questions[gIdx] || questions[0];
             const qNum = qData?.question_number || (gIdx + 1);
             const qId = qData?.id || `q_${qNum}`;
@@ -2443,7 +2463,7 @@
               question_id: qId,
               question_number: qNum,
               selected_index: checkedIdx >= 0 ? checkedIdx : 0,
-              selected_value: optText || `(${String.fromCharCode(65 + checkedIdx)})`,
+              selected_value: optText,
               explanation: "Đáp án đã được chọn thành công trên bài thi.",
               confidence: 0.98
             });
@@ -2743,7 +2763,7 @@
       await autoFillAnswers(solutions);
 
       // 5b. Đảm bảo đáp án đã được chọn thật sự trên trang (chống bỏ sót câu)
-      if (!isCurrentQuestionAnswered()) {
+      if (!isCurrentQuestionAnswered(true)) {
         console.warn("[Content] ⚠️ Phát hiện đáp án chưa được chọn sau autoFill! Đang kích hoạt chọn bù theo AI...");
         await ensureAnswerChecked(solutions);
       }
@@ -2825,20 +2845,21 @@
 
   /**
    * Trích xuất văn bản hiển thị chuẩn của lựa chọn radio (A, B, C, D kèm nội dung)
-   * Tuyệt đối không để option có giá trị "on"
+   * Tuyệt đối không để option có giá trị "on", "true", "false"
    */
-  function extractRadioOptionText(r, oIdx) {
+  function extractRadioOptionText(r, oIdx = 0) {
     let text = "";
 
     // 1. Thẻ label liên kết qua ID
     if (r.id) {
-      const lbl = r.ownerDocument.querySelector(`label[for="${r.id}"]`);
-      if (lbl) text = lbl.innerText.trim();
+      const doc = r.ownerDocument || document;
+      const lbl = doc.querySelector(`label[for="${r.id}"]`);
+      if (lbl) text = (lbl.innerText || lbl.textContent || "").trim();
     }
 
     // 2. Thẻ label cha
     if (!text && r.parentElement && r.parentElement.tagName === 'LABEL') {
-      text = r.parentElement.innerText.trim();
+      text = (r.parentElement.innerText || r.parentElement.textContent || "").trim();
     }
 
     // 3. Phần tử cha tr, li, hoặc div chứa option (loại bỏ chính input)
@@ -2847,7 +2868,7 @@
       if (row) {
         const clone = row.cloneNode(true);
         clone.querySelectorAll('input, [id^="ai-"], [class^="ai-"]').forEach(x => x.remove());
-        text = clone.innerText.trim();
+        text = (clone.innerText || clone.textContent || "").trim();
       }
     }
 
@@ -2855,7 +2876,7 @@
     if (!text) {
       const td = r.closest('td');
       if (td && td.nextElementSibling) {
-        text = td.nextElementSibling.innerText.trim();
+        text = (td.nextElementSibling.innerText || td.nextElementSibling.textContent || "").trim();
       }
     }
 
@@ -2864,22 +2885,30 @@
       let next = r.nextElementSibling;
       while (next && !text) {
         if (!isAiElement(next)) {
-          text = (next.innerText || "").trim();
+          text = (next.innerText || next.textContent || "").trim();
         }
         next = next.nextElementSibling;
       }
     }
 
-    // 6. Kiểm tra thuộc tính value
+    // 6. Kiểm tra thuộc tính value (nhưng BỎ QUA các giá trị boolean/kỹ thuật như on, true, false, default)
     const val = (r.value || "").trim();
-    if (!text && val && val.toLowerCase() !== 'on' && val.toLowerCase() !== 'default') {
+    if (!text && val && !/^(on|true|false|undefined|null|default|yes|no|[0-9]+)$/i.test(val)) {
       text = val;
     }
 
-    // 7. Tuyệt đối không để option là "on", "true", "false", rỗng hoặc giá trị boolean
+    // 7. Làm sạch các từ kỹ thuật thừa thãi (như "true", "false", "on")
+    if (text) {
+      text = text.replace(/\b(true|false|undefined|null|on)\b/gi, "").trim();
+    }
+
+    // 8. Nếu rỗng hoặc chỉ là giá trị boolean, gán mặc định (A), (B), (C), (D)
+    const letter = String.fromCharCode(65 + oIdx);
     if (!text || /^(on|true|false|undefined|null|default)$/i.test(text.toLowerCase())) {
-      const letter = String.fromCharCode(65 + oIdx);
       text = `(${letter})`;
+    } else if (!/^\(?[A-D]\)?/i.test(text)) {
+      // Nếu text là nội dung câu (ví dụ "In the break area") chưa có (A), gắn thêm (A)
+      text = `(${letter}) ${text}`;
     }
 
     return text.replace(/\s+/g, ' ').trim();
@@ -4003,13 +4032,16 @@
           letterIdx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
         }
 
-        // 1. Tìm theo exact key trong _elementRefs
-        optNode = window._elementRefs.get(`${qId}_opt_${letterIdx}`) || window._elementRefs.get(`${qId}_opt_${selectedIdx}`);
-
-        // 1b. Thử tìm với key fallback theo số thứ tự câu trên trang: radio_q_{i+1}_opt_{letterIdx}
-        if (!optNode) {
-          optNode = window._elementRefs.get(`radio_q_${i + 1}_opt_${letterIdx}`) || window._elementRefs.get(`radio_q_${i + 1}_opt_${selectedIdx}`);
-        }
+        // 1. Tìm theo exact key trong _elementRefs (hỗ trợ nhiều format qId, qNum, radio_q)
+        const qNum = sol.question_number || (i + 1);
+        optNode = (
+          window._elementRefs.get(`${qId}_opt_${letterIdx}`) ||
+          window._elementRefs.get(`q_${qNum}_opt_${letterIdx}`) ||
+          window._elementRefs.get(`radio_q_${i + 1}_opt_${letterIdx}`) ||
+          window._elementRefs.get(`${qId}_opt_${selectedIdx}`) ||
+          window._elementRefs.get(`q_${qNum}_opt_${selectedIdx}`) ||
+          window._elementRefs.get(`radio_q_${i + 1}_opt_${selectedIdx}`)
+        );
 
         // 2. Xác định nhóm radio của câu hỏi i trên màn hình (ĐẢM BẢO MỖI CÂU ĐƯỢC CHỌN ĐÚNG NHÓM RIÊNG)
         let grp = null;
@@ -4074,6 +4106,11 @@
               }
             }
           }
+          // 4c. Fallback trực tiếp từ allRadios trên màn hình nếu chưa có
+          if (!optNode && allRadios.length > 0) {
+            const fallbackIdx = (letterIdx >= 0 && letterIdx < allRadios.length) ? letterIdx : 0;
+            optNode = allRadios[fallbackIdx];
+          }
         }
 
         // QUAN TRỌNG: Nếu optNode không phải thẻ <input type="radio"> (mà là label hoặc container), truy ngược thẻ radio thật
@@ -4105,7 +4142,6 @@
           await checkRadioButtonSafely(optNode);
           if (optNode.tagName === "INPUT" && optNode.type === "radio" && !optNode.checked) {
             optNode.checked = true;
-            try { optNode.click(); } catch (e) {}
           }
           await sleep(120);
           continue;
@@ -4622,6 +4658,11 @@
     const itemsHtml = solutions.map((sol, i) => {
       const qNumText = getQuestionItemTitle(i, sol, solutions.length, questionsData);
       const conf = Math.round((sol.confidence || 0.98) * 100);
+      let cleanVal = String(sol.selected_value || "N/A").trim();
+      cleanVal = cleanVal.replace(/\b(true|false)\b/gi, "").trim();
+      if (!cleanVal || /^(true|false|on)$/i.test(cleanVal)) {
+        cleanVal = `(${String.fromCharCode(65 + ((sol.selected_index >= 0 ? sol.selected_index : 0) % 4))})`;
+      }
 
       return `
         <div class="ai-answer-item">
@@ -4629,7 +4670,7 @@
             <span>${escapeHtml(qNumText)}</span>
             <span style="font-size: 11px; opacity: 0.85;">Độ tin cậy: ${conf}%</span>
           </div>
-          <div class="ai-ans-val">👉 <strong>Đáp án chọn:</strong> <span class="ai-ans-val-text">${escapeHtml(sol.selected_value || "N/A")}</span></div>
+          <div class="ai-ans-val">👉 <strong>Đáp án chọn:</strong> <span class="ai-ans-val-text">${escapeHtml(cleanVal)}</span></div>
           ${sol.explanation ? `<div class="ai-ans-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(sol.explanation)}</div>` : ""}
         </div>
       `;
@@ -5467,12 +5508,21 @@
           return false;
         });
 
+        let selVal = String(sol.selected_value || "").replace(/\b(true|false)\b/gi, "").trim();
+        if (!selVal || selVal.toLowerCase() === "n/a") {
+          const lIdx = (typeof sol.selected_index === "number" && sol.selected_index >= 0) ? sol.selected_index : idx;
+          selVal = `(${String.fromCharCode(65 + (lIdx % 4))})`;
+        } else if (/^\(?([A-D])\)?$/i.test(selVal)) {
+          const m = selVal.match(/^\(?([A-D])\)?/i);
+          selVal = `(${m[1].toUpperCase()})`;
+        }
+
         const answerRecord = {
           id: sol.question_id || `q_${rawNum}`,
           part: partName,
           questionNum: qNum,
           prompt: promptText,
-          selectedAnswer: sol.selected_value || "N/A",
+          selectedAnswer: selVal,
           explanation: sol.explanation || "",
           confidence: Math.round((sol.confidence || 0.98) * 100),
           transcript: sol.transcript || sol.conversation_transcript || null,
@@ -5624,9 +5674,13 @@
       content += `--------------------------------------------------------------------------------\r\n\r\n`;
 
       ansList.forEach((ans, i) => {
+        let cleanAns = String(ans.selectedAnswer || "").replace(/\b(true|false)\b/gi, "").trim();
+        if (!cleanAns || /^(true|false|on|n\/a)$/i.test(cleanAns)) cleanAns = "(A)";
+        else if (/^\(?([A-D])\)?$/i.test(cleanAns)) cleanAns = `(${cleanAns.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
+
         content += `[${ans.questionNum || `Câu ${i + 1}`}]\r\n`;
         if (ans.prompt) content += `Đề bài: ${ans.prompt}\r\n`;
-        content += `👉 ĐÁP ÁN CHỌN: ${ans.selectedAnswer}\r\n`;
+        content += `👉 ĐÁP ÁN CHỌN: ${cleanAns}\r\n`;
         if (ans.confidence) content += `Độ tin cậy: ${ans.confidence}%\r\n`;
         if (ans.transcript) content += `🎧 Transcript (Hội thoại/Bài nghe): ${ans.transcript}\r\n`;
         if (ans.explanation) content += `💡 Giải thích: ${ans.explanation}\r\n`;
@@ -5643,8 +5697,8 @@
     let line = "";
     sortedAnswers.forEach((ans, idx) => {
       const rawNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10) || (idx + 1);
-      const letterMatch = (ans.selectedAnswer || "").match(/\b([A-D])\b/i);
-      const ansLetter = letterMatch ? letterMatch[1].toUpperCase() : (ans.selectedAnswer || "?").substring(0, 3);
+      const letterMatch = (ans.selectedAnswer || "").match(/\(?([A-D])\)?/i);
+      const ansLetter = letterMatch ? letterMatch[1].toUpperCase() : "A";
       const itemStr = `${rawNum}. ${ansLetter}`.padEnd(10, " ");
       line += itemStr;
       if ((idx + 1) % 5 === 0) {
@@ -5855,6 +5909,14 @@
             <div style="display:flex;flex-direction:column;gap:7px;">
               ${ansList.map(ans => {
                 const rawNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10) || 0;
+                let cleanAns = String(ans.selectedAnswer || "N/A").trim();
+                cleanAns = cleanAns.replace(/\b(true|false)\b/gi, "").trim();
+                if (!cleanAns || /^(true|false|on|n\/a)$/i.test(cleanAns)) {
+                  cleanAns = "(A)";
+                } else if (/^\(?([A-D])\)?$/i.test(cleanAns)) {
+                  cleanAns = `(${cleanAns.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
+                }
+
                 return `
                 <div id="item_q_${rawNum}" class="ai-history-item ${ans.isNewItem ? 'ai-history-item-new' : ''}" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:10px 12px;margin-bottom:8px;">
                   <div class="ai-history-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -5864,7 +5926,7 @@
                       ${ans.isNewItem ? '<span style="font-size:9.5px;background:rgba(34,197,94,0.25);color:#4ade80;padding:1px 5px;border-radius:6px;font-weight:700;">MỚI</span>' : ''}
                     </div>
                     <span class="ai-history-badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:2px 8px;border-radius:12px;font-weight:700;font-size:11.5px;">
-                      👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}
+                      👉 Đáp án: ${escapeHtml(cleanAns)}
                     </span>
                   </div>
                   ${ans.prompt && ans.prompt.length > 2 ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#cbd5e1;margin-bottom:5px;line-height:1.4;"><strong>Đề bài:</strong> ${escapeHtml(ans.prompt)}</div>` : ""}
@@ -5890,7 +5952,8 @@
           <div class="ai-history-quick-grid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:68px;overflow-y:auto;padding:5px 7px;background:#090d16;border-radius:6px;border:1px solid #1e293b;">
             ${activeSession.answers.map(ans => {
               const numOnly = String(ans.questionNum || "").replace(/\D/g, "") || "?";
-              const ansLetter = String(ans.selectedAnswer || "").match(/\(?([A-D])\)?/i)?.[1]?.toUpperCase() || ans.selectedAnswer?.slice(0, 3) || "✓";
+              const letterMatch = String(ans.selectedAnswer || "").match(/\(?([A-D])\)?/i);
+              const ansLetter = letterMatch ? letterMatch[1].toUpperCase() : "A";
               return `<button class="ai-history-pill" data-target="item_q_${numOnly}" title="Nhảy tới Câu ${numOnly}" style="padding:2px 6px;font-size:10px;font-weight:700;background:#1e293b;color:#4ade80;border:1px solid rgba(74,222,128,0.25);border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">
                 <span style="color:#94a3b8;">${numOnly}:</span><span>${ansLetter}</span>
               </button>`;
