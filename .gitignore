@@ -23,3 +23,7 @@ chrome_debug_profile/
 Thumbs.db
 .vscode/
 .idea/
+
+# Runtime test data
+backend/data/history/*
+!backend/data/history/.gitkeep

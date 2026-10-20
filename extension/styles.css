@@ -654,9 +654,20 @@
   flex: 1 !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
+  gap: 8px !important;
   max-height: 480px !important;
-  padding-right: 4px !important;
+  padding: 8px 6px 30px 6px !important;
+  box-sizing: border-box !important;
+}
+
+.ai-history-pill {
+  transition: all 0.15s ease !important;
+}
+
+.ai-history-pill:hover {
+  background: #334155 !important;
+  border-color: #38bdf8 !important;
+  transform: translateY(-1px) !important;
 }
 
 .ai-history-list::-webkit-scrollbar {

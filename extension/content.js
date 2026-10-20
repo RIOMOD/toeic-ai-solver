@@ -1857,6 +1857,15 @@
     const win = radio.ownerDocument?.defaultView || window;
     const doc = radio.ownerDocument || document;
 
+    // Xử lý các nút trắc nghiệm custom (button, div, label, li)
+    if (radio.tagName !== "INPUT") {
+      triggerSmartClick(radio);
+      try { radio.setAttribute('aria-checked', 'true'); } catch (e) {}
+      try { radio.classList.add('selected', 'active', 'checked'); } catch (e) {}
+      highlightElement(radio);
+      return;
+    }
+
     // 1. Gán thuộc tính checked
     radio.checked = true;
     try { radio.setAttribute('checked', 'checked'); } catch (e) {}
@@ -2495,7 +2504,13 @@
         console.log(`[Content] ⚡ Tự động bỏ qua chụp ảnh màn hình (Câu hỏi đã có đầy đủ Text/Audio trong DOM) -> Phản hồi siêu tốc 1-2s!`);
       }
 
-      // 4. Gửi sang Backend Node.js với timeout bảo vệ 55 giây
+      // 3b. Thu thập ảnh câu hỏi độ nét cao (Part 1 tranh, Part 7 bảng biểu / sơ đồ)
+      const questionImages = await extractQuestionImages();
+      if (questionImages.length > 0) {
+        console.log(`[Content] 🖼️ Thu thập được ${questionImages.length} ảnh câu hỏi sắc nét đính kèm cho AI!`);
+      }
+
+      // 4. Gửi sang Backend Node.js với timeout bảo vệ 35 giây
       let solveResp = null;
       let solveErr = null;
       try {
@@ -2505,6 +2520,7 @@
             payload: {
               questions: questionsData,
               base64Image: screenshotBase64,
+              questionImages: questionImages,
               pageText: combinedPageText,
               audioUrl: audioUrl,
               audioBase64: audioData ? audioData.base64 : null,
@@ -2549,9 +2565,9 @@
       const conversationTranscript = solveResp.conversation_transcript || solutions[0]?.conversation_transcript || "";
       console.log(`[Content] Nhận được ${solutions.length} lời giải:`, solutions);
 
-      // Gán question_number từ questionsData sang solutions nếu thiếu
+      // Luôn gán question_number chuẩn xác từ DOM questionsData sang solutions (tránh việc AI đoán mò question_number = 1)
       solutions.forEach((sol, idx) => {
-        if (!sol.question_number && questionsData[idx]?.question_number) {
+        if (questionsData[idx]?.question_number) {
           sol.question_number = questionsData[idx].question_number;
         }
       });
@@ -2750,6 +2766,21 @@
         });
         radios.push(...docRadios);
       } catch (e) {}
+    }
+
+    // Fallback: Nếu trang không dùng thẻ <input type="radio"> mà dùng custom choice buttons/divs
+    if (radios.length === 0) {
+      for (const doc of docs) {
+        try {
+          const win = doc.defaultView || window;
+          if (win !== window && win.frameElement && !isIframeVisible(win.frameElement)) continue;
+          const customChoices = Array.from(doc.querySelectorAll('[role="radio"], button.choice, button.choice-btn, .choice-item, .answer-item, .option-item, .quiz-answer, button[class*="choice" i], button[class*="answer" i]'))
+            .filter(el => !isAiElement(el) && isElementVisible(el) && isElementOnScreen(el) && !seenRadios.has(el));
+          if (customChoices.length >= 2) {
+            radios.push(...customChoices);
+          }
+        } catch (e) {}
+      }
     }
 
     // Sắp xếp các radio từ trên xuống dưới theo toạ độ màn hình tuyệt đối Y
@@ -3163,7 +3194,8 @@
         // CỰC KỲ QUAN TRỌNG: Có ngân hàng từ nhưng chưa bắt được thẻ DOM ô trống
         // VẪN PHẢI TẠO CÂU HỎI gửi AI, không được gửi 0 câu hỏi!
         console.log(`[Content] ⚠️ Ngân hàng từ sẵn sàng (${bankOptions.join(', ')}), đang trích xuất câu hỏi từ văn bản trang...`);
-        const lines = combinedPageText.split("\n").map(l => l.trim()).filter(l => l.length > 8);
+        const pageTextContent = getCachedPageText() || allDocsText || "";
+        const lines = pageTextContent.split("\n").map(l => l.trim()).filter(l => l.length > 8);
         const blankLines = lines.filter(l => /___|____|\bblank\b|looks as if|I wish|essential that|vital that|suggest that|recommend that|demand that/i.test(l));
         const questionText = blankLines.slice(0, 3).join("\n") || "Kéo từ thích hợp vào ô trống trong đoạn hội thoại.";
 
@@ -4151,10 +4183,7 @@
     const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
     const combinedSearchText = `${allTitles} ${allDocsText}`;
 
-    // 0. Ưu tiên số câu đã được trích xuất chính xác trong questionsData hoặc sol
-    if (sol?.question_number && typeof sol.question_number === "number" && sol.question_number >= 1) {
-      return `Câu ${sol.question_number}`;
-    }
+    // 0. ƯU TIÊN SỐ 1: Số câu trích xuất trực tiếp từ DOM trang web (GROUND TRUTH THỰC TẾ)
     if (questionsData && typeof questionsData[index]?.question_number === "number" && questionsData[index].question_number >= 1) {
       return `Câu ${questionsData[index].question_number}`;
     }
@@ -4166,6 +4195,11 @@
       if (!isNaN(qNum) && qNum >= 1 && qNum <= 200) {
         return `Câu ${qNum + index}`;
       }
+    }
+
+    // 2. Số câu từ kết quả giải (chỉ dùng nếu DOM không tìm thấy)
+    if (sol?.question_number && typeof sol.question_number === "number" && sol.question_number >= 1) {
+      return `Câu ${sol.question_number}`;
     }
 
     // 2. Dựa vào dải số câu trên trang (VD: Questions 80 - 82 -> Câu 80 + index)
@@ -4552,6 +4586,63 @@
         }
       })();
     });
+  }
+
+  /**
+   * Trích xuất các hình ảnh đề bài độ nét cao (Part 1 tranh, Part 7 biểu đồ, sơ đồ, hóa đơn)
+   */
+  async function extractQuestionImages() {
+    const images = [];
+    try {
+      const allDocs = getAllExerciseDocuments();
+      const seenUrls = new Set();
+
+      for (const doc of allDocs) {
+        const imgEls = Array.from(doc.querySelectorAll("img")).filter(img => {
+          if (isAiElement(img) || !isElementVisible(img)) return false;
+          const src = img.currentSrc || img.src || img.getAttribute("src") || "";
+          if (!src || src.startsWith("data:image/svg") || src.includes("icon") || src.includes("logo") || src.includes("avatar")) return false;
+          const rect = img.getBoundingClientRect();
+          return (rect.width >= 70 && rect.height >= 70) || (img.naturalWidth >= 70 && img.naturalHeight >= 70);
+        });
+
+        for (const img of imgEls) {
+          const src = img.currentSrc || img.src || img.getAttribute("src") || "";
+          let fullUrl = src;
+          try {
+            fullUrl = new URL(src, doc.location?.href || window.location.href).href;
+          } catch (e) {}
+
+          if (!fullUrl || seenUrls.has(fullUrl)) continue;
+          seenUrls.add(fullUrl);
+
+          // Thử lấy Base64 trực tiếp qua Canvas nếu cùng origin
+          let base64 = null;
+          try {
+            if (img.complete && img.naturalWidth > 0) {
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.min(img.naturalWidth, 1200);
+              canvas.height = Math.round((canvas.width / img.naturalWidth) * img.naturalHeight);
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              base64 = canvas.toDataURL("image/jpeg", 0.85);
+            }
+          } catch (e) {}
+
+          images.push({
+            url: fullUrl,
+            base64: base64,
+            mime: "image/jpeg"
+          });
+
+          if (images.length >= 3) break;
+        }
+        if (images.length >= 3) break;
+      }
+    } catch (err) {
+      console.warn("[Content] Lỗi khi trích xuất ảnh câu hỏi:", err);
+    }
+    return images;
   }
 
   /**
@@ -5265,7 +5356,7 @@
       return numA - numB;
     });
 
-    let content = `================================================================================\r\n`;
+    let content = `\uFEFF================================================================================\r\n`;
     content += `                    BẢNG ĐÁP ÁN BÀI THI TOEIC HOÀN CHỈNH\r\n`;
     content += `================================================================================\r\n`;
     content += `Tên bài thi: ${session.title || session.testName || "Bài Thi TOEIC"}\r\n`;
@@ -5412,6 +5503,19 @@
     await renderHistoryModalContent(modal, targetSessionId, false);
   }
 
+  function normalizePartName(partStr, qNum) {
+    const num = parseInt(String(qNum || "").replace(/\D/g, ""), 10) || 0;
+    const str = String(partStr || "").toLowerCase();
+    if (str.includes("part 1") || (num >= 1 && num <= 6 && !str.includes("part 2"))) return "Part 1 (Photographs - Mô tả tranh)";
+    if (str.includes("part 2") || (num >= 7 && num <= 31) || str.includes("question - response")) return "Part 2 (Question - Response - Hỏi & Đáp)";
+    if (str.includes("part 3") || (num >= 32 && num <= 70) || str.includes("conversations")) return "Part 3 (Conversations - Đoạn hội thoại)";
+    if (str.includes("part 4") || (num >= 71 && num <= 100) || str.includes("short talks")) return "Part 4 (Short Talks - Bài nói chuyện ngắn)";
+    if (str.includes("part 5") || (num >= 101 && num <= 130) || str.includes("incomplete sentences")) return "Part 5 (Incomplete Sentences - Điền vào chỗ trống)";
+    if (str.includes("part 6") || (num >= 131 && num <= 146) || str.includes("text completion")) return "Part 6 (Text Completion - Hoàn thành đoạn văn)";
+    if (str.includes("part 7") || (num >= 147 && num <= 200) || str.includes("reading comprehension")) return "Part 7 (Reading Comprehension - Đọc hiểu đoạn văn)";
+    return partStr || "Bài Thi";
+  }
+
   async function renderHistoryModalContent(modal, targetSessionId = null, isLive = false) {
     if (!modal) return;
 
@@ -5450,6 +5554,21 @@
     let sessionToUse = targetSessionId || currentSelectedSessionId || currentActiveSessionId;
     let activeSession = history.find(s => s.id === sessionToUse) || history[0];
 
+    // 2. Dọn dẹp trùng lặp theo số câu, chuẩn hóa Part và sắp xếp tăng dần 1, 2, 3...
+    const uniqueAnswersMap = new Map();
+    (activeSession.answers || []).forEach(ans => {
+      const qNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10);
+      ans.part = normalizePartName(ans.part, ans.questionNum);
+      const key = qNum > 0 ? `q_${qNum}` : (ans.id || JSON.stringify(ans));
+      uniqueAnswersMap.set(key, ans);
+    });
+    activeSession.answers = Array.from(uniqueAnswersMap.values());
+    activeSession.answers.sort((a, b) => {
+      const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+      const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
+      return numA - numB;
+    });
+
     // Cập nhật dataset
     const newAnswersCount = activeSession.answers?.length || 0;
     const hasNewAnswer = isLive && (newAnswersCount > prevAnswersCount);
@@ -5468,7 +5587,7 @@
       // Nhóm câu hỏi theo từng Part của bài thi
       const partsMap = new Map();
       activeSession.answers.forEach((ans, ansIdx) => {
-        const pKey = ans.part || getQuestionPartName(ans.questionNum);
+        const pKey = ans.part || "Bài Thi";
         if (!partsMap.has(pKey)) {
           partsMap.set(pKey, []);
         }
@@ -5493,29 +5612,51 @@
               </span>
             </div>
             <div style="display:flex;flex-direction:column;gap:7px;">
-              ${ansList.map(ans => `
-                <div class="ai-history-item ${ans.isNewItem ? 'ai-history-item-new' : ''}" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:9px 11px;">
-                  <div class="ai-history-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+              ${ansList.map(ans => {
+                const rawNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10) || 0;
+                return `
+                <div id="item_q_${rawNum}" class="ai-history-item ${ans.isNewItem ? 'ai-history-item-new' : ''}" style="background:#0f172a;border:1px solid #1e293b;border-radius:7px;padding:10px 12px;margin-bottom:8px;">
+                  <div class="ai-history-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                      <span class="ai-history-qnum" style="font-weight:700;font-size:12.5px;color:#f8fafc;">${escapeHtml(ans.questionNum || "Câu ?")}</span>
-                      <span style="font-size:10px;color:#64748b;">${ans.time || ""}</span>
+                      <span class="ai-history-qnum" style="font-weight:700;font-size:13px;color:#38bdf8;">${escapeHtml(ans.questionNum || "Câu ?")}</span>
+                      <span style="font-size:10.5px;color:#64748b;">${ans.time || ""}</span>
                       ${ans.isNewItem ? '<span style="font-size:9.5px;background:rgba(34,197,94,0.25);color:#4ade80;padding:1px 5px;border-radius:6px;font-weight:700;">MỚI</span>' : ''}
                     </div>
                     <span class="ai-history-badge" style="background:rgba(34,197,94,0.15);color:#4ade80;border:1px solid rgba(34,197,94,0.3);padding:2px 8px;border-radius:12px;font-weight:700;font-size:11.5px;">
                       👉 Đáp án: ${escapeHtml(ans.selectedAnswer || "N/A")}
                     </span>
                   </div>
-                  ${ans.prompt && ans.prompt.length > 2 ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#cbd5e1;margin-bottom:4px;line-height:1.4;"><strong>Đề bài:</strong> ${escapeHtml(ans.prompt)}</div>` : ""}
-                  ${ans.transcript ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#38bdf8;background:rgba(56,189,248,0.08);padding:5px 8px;border-radius:4px;margin-bottom:4px;line-height:1.4;">🎧 <strong>Transcript:</strong> ${escapeHtml(ans.transcript)}</div>` : ""}
-                  ${ans.explanation ? `<div class="ai-history-exp" style="font-size:11.5px;color:#fbbf24;line-height:1.4;">💡 <strong>Giải thích:</strong> ${escapeHtml(ans.explanation)}</div>` : ""}
+                  ${ans.prompt && ans.prompt.length > 2 ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#cbd5e1;margin-bottom:5px;line-height:1.4;"><strong>Đề bài:</strong> ${escapeHtml(ans.prompt)}</div>` : ""}
+                  ${ans.transcript ? `<div class="ai-history-prompt" style="font-size:11.5px;color:#38bdf8;background:rgba(56,189,248,0.08);padding:6px 9px;border-radius:5px;margin-bottom:5px;line-height:1.45;border-left:2.5px solid #38bdf8;">🎧 <strong>Transcript bài nghe:</strong> ${escapeHtml(ans.transcript)}</div>` : ""}
+                  ${ans.explanation ? `<div class="ai-history-exp" style="font-size:11.5px;color:#fbbf24;line-height:1.45;background:rgba(251,191,36,0.06);padding:6px 9px;border-radius:5px;">💡 <strong>Giải thích chi tiết:</strong> ${escapeHtml(ans.explanation)}</div>` : ""}
                 </div>
-              `).join("")}
+              `;
+              }).join("")}
             </div>
           </div>
         `;
       });
     } else {
       answersListHtml = `<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px;">Chưa có câu hỏi nào được lưu trong bài thi này.</div>`;
+    }
+
+    // Tạo bảng tóm tắt nhanh tất cả các câu đã giải
+    let quickGridHtml = "";
+    if (activeSession.answers && activeSession.answers.length > 0) {
+      quickGridHtml = `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:10.5px;color:#64748b;margin-bottom:3px;font-weight:600;">Bảng đáp án nhanh (Click để nhảy tới câu):</div>
+          <div class="ai-history-quick-grid" style="display:flex;flex-wrap:wrap;gap:4px;max-height:68px;overflow-y:auto;padding:5px 7px;background:#090d16;border-radius:6px;border:1px solid #1e293b;">
+            ${activeSession.answers.map(ans => {
+              const numOnly = String(ans.questionNum || "").replace(/\D/g, "") || "?";
+              const ansLetter = String(ans.selectedAnswer || "").match(/\(?([A-D])\)?/i)?.[1]?.toUpperCase() || ans.selectedAnswer?.slice(0, 3) || "✓";
+              return `<button class="ai-history-pill" data-target="item_q_${numOnly}" title="Nhảy tới Câu ${numOnly}" style="padding:2px 6px;font-size:10px;font-weight:700;background:#1e293b;color:#4ade80;border:1px solid rgba(74,222,128,0.25);border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;">
+                <span style="color:#94a3b8;">${numOnly}:</span><span>${ansLetter}</span>
+              </button>`;
+            }).join("")}
+          </div>
+        </div>
+      `;
     }
 
     modal.innerHTML = `
@@ -5556,20 +5697,22 @@
         </button>
       </div>
 
+      ${quickGridHtml}
+
       <div class="ai-history-list" id="ai-history-list">
         ${answersListHtml}
       </div>
     `;
 
-    document.getElementById("ai-history-close-btn")?.addEventListener("click", () => {
+    modal.querySelector("#ai-history-close-btn")?.addEventListener("click", () => {
       modal.remove();
     });
 
-    document.getElementById("ai-history-session-select")?.addEventListener("change", (e) => {
+    modal.querySelector("#ai-history-session-select")?.addEventListener("change", (e) => {
       showHistoryModal(e.target.value);
     });
 
-    document.getElementById("ai-btn-new-session")?.addEventListener("click", async () => {
+    modal.querySelector("#ai-btn-new-session")?.addEventListener("click", async () => {
       if (confirm("Bạn có muốn chốt bài thi này và BẮT ĐẦU MỘT BÀI THI MỚI (các câu hỏi tiếp theo sẽ lưu vào 1 file mới) không?")) {
         await chrome.storage.local.remove(["toeic_active_session_id"]);
         showAiToast("✨ Đã tạo phiên làm bài mới! Các câu hỏi tiếp theo sẽ lưu vào 1 file mới.");
@@ -5577,19 +5720,19 @@
       }
     });
 
-    document.getElementById("ai-btn-copy-history")?.addEventListener("click", () => {
+    modal.querySelector("#ai-btn-copy-history")?.addEventListener("click", () => {
       copySessionAnswers(activeSession);
     });
 
-    document.getElementById("ai-btn-export-txt")?.addEventListener("click", () => {
+    modal.querySelector("#ai-btn-export-txt")?.addEventListener("click", () => {
       exportSessionToTxt(activeSession);
     });
 
-    document.getElementById("ai-btn-export-json")?.addEventListener("click", () => {
+    modal.querySelector("#ai-btn-export-json")?.addEventListener("click", () => {
       exportSessionToJson(activeSession);
     });
 
-    document.getElementById("ai-btn-del-history")?.addEventListener("click", async () => {
+    modal.querySelector("#ai-btn-del-history")?.addEventListener("click", async () => {
       if (confirm(`Bạn có chắc chắn muốn xóa lịch sử đáp án của bài thi "${activeSession.title}" không?`)) {
         const d = await chrome.storage.local.get(["toeic_test_history"]);
         let h = Array.isArray(d.toeic_test_history) ? d.toeic_test_history : [];
@@ -5598,6 +5741,23 @@
         showAiToast("🗑️ Đã xóa bài thi khỏi lịch sử!");
         showHistoryModal();
       }
+    });
+
+    // Xử lý sự kiện click trên các nút tóm tắt nhanh để cuộn mượt tới câu hỏi đó
+    modal.querySelectorAll(".ai-history-pill").forEach(pill => {
+      pill.addEventListener("click", () => {
+        const targetId = pill.getAttribute("data-target");
+        const targetEl = modal.querySelector(`#${targetId}`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          targetEl.style.borderColor = "#38bdf8";
+          targetEl.style.boxShadow = "0 0 10px rgba(56,189,248,0.4)";
+          setTimeout(() => {
+            targetEl.style.borderColor = "#1e293b";
+            targetEl.style.boxShadow = "none";
+          }, 1500);
+        }
+      });
     });
 
     // Khôi phục mượt mà vị trí cuộn

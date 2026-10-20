@@ -334,6 +334,31 @@ async function forwardToBackend(payload) {
     } catch (e) {}
   }
 
+  // 1b. Tải ảnh câu hỏi sắc nét qua Service Worker (vượt CORS) nếu chưa có Base64
+  if (Array.isArray(payload.questionImages) && payload.questionImages.length > 0) {
+    for (let i = 0; i < payload.questionImages.length; i++) {
+      const imgObj = payload.questionImages[i];
+      if (imgObj && imgObj.url && !imgObj.base64) {
+        try {
+          const imgController = new AbortController();
+          const imgTimeout = setTimeout(() => imgController.abort(), 2500);
+          const imgRes = await fetch(imgObj.url, { signal: imgController.signal });
+          clearTimeout(imgTimeout);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            const mime = imgObj.mime || blob.type || "image/jpeg";
+            const arrayBuf = await blob.arrayBuffer();
+            imgObj.base64 = bufferToBase64(arrayBuf, mime);
+            imgObj.mime = mime;
+            console.log(`[Background] 🖼️ Service Worker đã tải xong ảnh câu hỏi #${i + 1} (${mime})!`);
+          }
+        } catch (e) {
+          console.warn(`[Background] Không thể nạp ảnh câu hỏi #${i + 1} từ URL:`, e.message);
+        }
+      }
+    }
+  }
+
   // 1. Nếu payload có audio mới, cập nhật vào bộ nhớ đệm
   if (payload.audioBase64) {
     lastCapturedAudio = {

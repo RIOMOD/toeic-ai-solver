@@ -80,26 +80,26 @@ const failedModelCooldown = new Map();
 // Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, ưu tiên các model có quota dồi dào và hỗ trợ audio siêu tốc
 const CANDIDATE_MODELS = [
   "gemini-3-flash-preview",
-  "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite-preview",
-  "gemini-flash-lite-latest",
   "gemini-3.5-flash",
-  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-lite-latest",
   process.env.GEMINI_MODEL
-].filter(Boolean);
+].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
 /**
  * Giải bài tập tiếng Anh bằng Google Gemini Flash API đa phương thức
  * @param {Object} params
  * @param {Array} params.questions - Danh sách câu hỏi [{ id, text, options, imageUrl, target_type }]
  * @param {string} [params.base64Image] - Ảnh chụp màn hình tab bài tập (nếu có)
+ * @param {Array} [params.questionImages] - Danh sách ảnh câu hỏi nét cao (nếu có)
  * @param {string} [params.pageText] - Văn bản toàn trang
  * @param {string} [params.audioBase64] - Dữ liệu âm thanh Base64 bài nghe (nếu có)
  * @param {string} [params.audioMime] - MIME type của audio (mặc định audio/mp3)
  * @param {string} [params.apiKey] - API key tùy chọn từ Extension
  * @returns {Promise<Object>} - { conversation_transcript, solutions }
  */
-export async function solveQuestionsBatch({ questions, base64Image, pageText, audioBase64, audioMime, apiKey: requestApiKey }) {
+export async function solveQuestionsBatch({ questions, base64Image, questionImages, pageText, audioBase64, audioMime, apiKey: requestApiKey }) {
   const finalQuestions = (questions && questions.length > 0) ? questions : [
     {
       id: "q_1",
@@ -201,7 +201,27 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
     }
   }
 
-  // 2. Đính kèm ảnh chụp màn hình đa phương thức nếu có
+  // 2. Đính kèm ảnh câu hỏi độ nét cao (nếu có - Part 1 tranh ảnh, Part 7 biểu đồ, bảng biểu)
+  if (Array.isArray(questionImages) && questionImages.length > 0) {
+    questionImages.forEach((img, idx) => {
+      const rawBase64 = typeof img === "string" ? img : img.base64;
+      if (rawBase64) {
+        const cleanImg = rawBase64.replace(/^data:[^;]+;base64,/, "").trim();
+        const detectedMime = (typeof img === "object" && img.mime) || rawBase64.match(/^data:([^;]+);base64,/)?.[1] || "image/jpeg";
+        if (cleanImg.length > 100) {
+          contents.push({
+            inlineData: {
+              mimeType: detectedMime,
+              data: cleanImg
+            }
+          });
+          console.log(`[GeminiService] 🖼️ ĐÃ GẮN ẢNH CÂU HỎI SẮC NÉT #${idx + 1} (${detectedMime}, ${Math.round(cleanImg.length / 1024)} KB)!`);
+        }
+      }
+    });
+  }
+
+  // 3. Đính kèm ảnh chụp màn hình đa phương thức nếu có
   if (base64Image) {
     const cleanBase64 = base64Image.replace(/^data:[^;]+;base64,/, "").trim();
     const detectedMime = base64Image.match(/^data:([^;]+);base64,/)?.[1] || "image/jpeg";

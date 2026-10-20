@@ -131,20 +131,21 @@ app.get(["/", "/health", "/api/health"], (req, res) => {
 // Route chính: Giải bài tập tiếng Anh từ Extension
 app.post("/api/solve", async (req, res) => {
   try {
-    const { questions, base64Image, pageText, audioBase64, audioMime, apiKey } = req.body;
+    const { questions, base64Image, questionImages, pageText, audioBase64, audioMime, apiKey } = req.body;
 
-    if ((!questions || questions.length === 0) && !base64Image && !audioBase64 && !pageText) {
+    if ((!questions || questions.length === 0) && !base64Image && !audioBase64 && !pageText && (!questionImages || questionImages.length === 0)) {
       return res.status(400).json({
         success: false,
         error: "Yêu cầu phải có danh sách câu hỏi, văn bản bài thi, ảnh chụp màn hình hoặc file âm thanh bài tập."
       });
     }
 
-    console.log(`[POST /api/solve] Nhận yêu cầu giải: ${questions?.length || 0} câu hỏi, kèm ảnh: ${Boolean(base64Image)}, kèm Audio: ${Boolean(audioBase64)}, kèm custom Key: ${Boolean(apiKey)}`);
+    console.log(`[POST /api/solve] Nhận yêu cầu giải: ${questions?.length || 0} câu hỏi, kèm ảnh tab: ${Boolean(base64Image)}, kèm ${questionImages?.length || 0} ảnh câu hỏi, kèm Audio: ${Boolean(audioBase64)}, kèm custom Key: ${Boolean(apiKey)}`);
 
     const result = await solveQuestionsBatch({
       questions: questions || [],
       base64Image,
+      questionImages,
       pageText,
       audioBase64,
       audioMime,
