@@ -5466,6 +5466,19 @@
         session.title = cleanExamName;
         session.testName = cleanExamName;
       }
+      // Làm sạch các đáp án cũ nếu từng bị lưu nhầm "true"
+      if (Array.isArray(session.answers)) {
+        session.answers.forEach(a => {
+          let val = String(a.selectedAnswer || "").replace(/\b(true|false)\b/gi, "").trim();
+          if (!val || /^(true|false|on|undefined|null|n\/a)$/i.test(val)) {
+            a.selectedAnswer = "(A)";
+          } else if (/^\(?([A-D])\)?$/i.test(val)) {
+            a.selectedAnswer = `(${val.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
+          } else {
+            a.selectedAnswer = val;
+          }
+        });
+      }
     }
 
     return { session, history };
@@ -5530,9 +5543,29 @@
         };
 
         if (existingIdx >= 0) {
+          // BẢO VỆ DỮ LIỆU AI: Tuyệt đối không để bản ghi sync DOM dự phòng ("Đáp án đã được chọn thành công...")
+          // đè mất lời giải thích và transcript chi tiết của Gemini đã lưu từ trước!
+          const existing = session.answers[existingIdx];
+          const isDummySync = sol.explanation === "Đáp án đã được chọn thành công trên bài thi.";
+          const existingHasRichInfo = existing && existing.explanation && existing.explanation !== "Đáp án đã được chọn thành công trên bài thi.";
+          if (isDummySync && existingHasRichInfo) {
+            return; // Giữ nguyên bản ghi chi tiết chất lượng cao của AI
+          }
           session.answers[existingIdx] = answerRecord;
         } else {
           session.answers.push(answerRecord);
+        }
+      });
+
+      // Dọn dẹp và làm sạch toàn bộ câu hỏi trong session (triệt tiêu bất kỳ từ "true" nào còn sót lại từ trước)
+      session.answers.forEach(a => {
+        let val = String(a.selectedAnswer || "").replace(/\b(true|false)\b/gi, "").trim();
+        if (!val || /^(true|false|on|undefined|null|n\/a)$/i.test(val)) {
+          a.selectedAnswer = "(A)";
+        } else if (/^\(?([A-D])\)?$/i.test(val)) {
+          a.selectedAnswer = `(${val.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
+        } else {
+          a.selectedAnswer = val;
         }
       });
 
@@ -5854,6 +5887,14 @@
     (activeSession.answers || []).forEach(ans => {
       const qNum = parseInt(String(ans.questionNum || "").replace(/\D/g, ""), 10);
       ans.part = normalizePartName(ans.part, ans.questionNum);
+      let val = String(ans.selectedAnswer || "").replace(/\b(true|false)\b/gi, "").trim();
+      if (!val || /^(true|false|on|undefined|null|n\/a)$/i.test(val)) {
+        ans.selectedAnswer = "(A)";
+      } else if (/^\(?([A-D])\)?$/i.test(val)) {
+        ans.selectedAnswer = `(${val.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
+      } else {
+        ans.selectedAnswer = val;
+      }
       const key = qNum > 0 ? `q_${qNum}` : (ans.id || JSON.stringify(ans));
       uniqueAnswersMap.set(key, ans);
     });

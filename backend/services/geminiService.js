@@ -110,6 +110,23 @@ export async function solveQuestionsBatch({ questions, base64Image, questionImag
     }
   ];
 
+  // Chuẩn hóa và làm sạch finalQuestions trước khi gửi cho Gemini (Tuyệt đối không để option là "true" hay "false")
+  finalQuestions.forEach((q, idx) => {
+    if (Array.isArray(q.options)) {
+      q.options = q.options.map((opt, oIdx) => {
+        let str = String(opt || "").replace(/\b(true|false|undefined|null|on)\b/gi, "").trim();
+        const letter = String.fromCharCode(65 + oIdx);
+        if (!str || /^(on|true|false|undefined|null|default)$/i.test(str)) {
+          return `(${letter})`;
+        }
+        if (!/^\(?[A-D]\)?/i.test(str)) {
+          return `(${letter}) ${str}`;
+        }
+        return str;
+      });
+    }
+  });
+
   // 1. Kiểm tra Cache siêu tốc (0ms latency nếu câu hỏi trùng lặp)
   const cacheKey = getCacheKey(finalQuestions, pageText, audioBase64, base64Image);
   const cachedItem = solutionCache.get(cacheKey);
@@ -384,13 +401,25 @@ function safeParseSolutions(rawText, expectedQuestions = []) {
     const targetQ = questionMap.get(qId) || expectedQuestions[i];
 
     let selectedIdx = typeof sol.selected_index === "number" ? sol.selected_index : 0;
-    let selectedVal = String(sol.selected_value || "").trim();
+    let selectedVal = String(sol.selected_value || "").replace(/\b(true|false)\b/gi, "").trim();
 
-    // Đồng bộ chữ cái (A, B, C, D) với selected_index
+    // 1. Kiểm tra chữ cái được khẳng định trong phần giải thích (ví dụ: "đáp án (B) là phản hồi tự nhiên nhất")
+    const expText = sol.explanation || "";
+    const expLetterMatch = (
+      expText.match(/(?:đáp án|chọn|lựa chọn|phản hồi)\s*\(?([A-D])\)?/i) ||
+      expText.match(/\(?([A-D])\)?\s*(?:là|is)\s*(?:đáp án|phản hồi|chính xác|correct)/i)
+    );
+
+    // 2. Đồng bộ chữ cái (A, B, C, D) từ selectedVal
     const letterMatch = selectedVal.match(/^\(?([A-D])[\)\.\:\s]/i) || selectedVal.match(/^([A-D])$/i);
+
     if (letterMatch) {
-      const charCode = letterMatch[1].toUpperCase().charCodeAt(0);
-      selectedIdx = charCode - 65; // 'A' -> 0, 'B' -> 1, 'C' -> 2, 'D' -> 3
+      selectedIdx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+    } else if (expLetterMatch) {
+      // Ưu tiên cao nhất cho đáp án được phân tích và chứng minh trong lời giải thích!
+      selectedIdx = expLetterMatch[1].toUpperCase().charCodeAt(0) - 65;
+    } else if (typeof sol.selected_index === "number" && sol.selected_index >= 0 && sol.selected_index <= 3) {
+      selectedIdx = sol.selected_index;
     } else if (targetQ && Array.isArray(targetQ.options) && targetQ.options.length > 0) {
       // Nếu selected_value chưa có chữ cái, đối chiếu với targetQ.options để tìm index đúng
       const foundIdx = targetQ.options.findIndex(opt => {
@@ -401,10 +430,21 @@ function safeParseSolutions(rawText, expectedQuestions = []) {
       if (foundIdx >= 0) {
         selectedIdx = foundIdx;
       }
-      const letter = String.fromCharCode(65 + Math.max(0, Math.min(3, selectedIdx)));
-      if (!selectedVal.startsWith(`(${letter})`)) {
-        selectedVal = `(${letter}) ${selectedVal}`;
+    }
+
+    // Đảm bảo selectedIdx hợp lệ (0: A, 1: B, 2: C, 3: D)
+    selectedIdx = Math.max(0, Math.min(3, selectedIdx));
+    const letter = String.fromCharCode(65 + selectedIdx);
+
+    // Chuẩn hóa selectedVal luôn có nhãn (A), (B), (C), (D) kèm nội dung chính xác
+    if (!selectedVal || /^\(?[A-D]\)?$/i.test(selectedVal)) {
+      if (targetQ && Array.isArray(targetQ.options) && targetQ.options[selectedIdx]) {
+        selectedVal = targetQ.options[selectedIdx];
+      } else {
+        selectedVal = `(${letter})`;
       }
+    } else if (!selectedVal.startsWith(`(${letter})`)) {
+      selectedVal = `(${letter}) ${selectedVal.replace(/^\(?[A-D]\)?\s*/i, "")}`.trim();
     }
 
     normalizedSolutions.push({
