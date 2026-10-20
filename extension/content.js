@@ -865,17 +865,22 @@
    */
   function initAutoQuestionWatcher() {
     setInterval(async () => {
-      // ⛔ 1. CHỈ CHẠY KHI MỘT TRONG CÁC CHẾ ĐỘ AUTO ĐANG THỰC SỰ BẬT!
-      if (!isAutoNextRunning && !isMasterAutoRunning) {
-        return;
+      // 0. Luôn ưu tiên phát hiện và nhấn nút chuyển tiếp Section (Start Section) TRƯỚC HẾT!
+      // (chạy liên tục để tự động vượt qua popup Start Section kể cả khi tạm dừng)
+      try {
+        if (findAndClickSectionTransitionButton()) {
+          console.log("[AutoWatcher] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
+          isSolvingCurrentQuestion = false;
+          window._solvingStartTime = null;
+          await sleep(2000);
+          return;
+        }
+      } catch (e) {
+        console.warn("[AutoWatcher] Lỗi khi kiểm tra Section transition:", e);
       }
 
-      // 0. Luôn ưu tiên phát hiện và nhấn nút chuyển tiếp Section (Start Section) TRƯỚC HẾT!
-      if (findAndClickSectionTransitionButton()) {
-        console.log("[AutoWatcher] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
-        isSolvingCurrentQuestion = false;
-        window._solvingStartTime = null;
-        await sleep(2500);
+      // ⛔ 1. CHỈ CHẠY KHI MỘT TRONG CÁC CHẾ ĐỘ AUTO ĐANG THỰC SỰ BẬT!
+      if (!isAutoNextRunning && !isMasterAutoRunning) {
         return;
       }
 
@@ -2035,14 +2040,29 @@
       }
     }
 
-    // 2. Màn hình "Please select test mode" / Chọn kiểu test lúc đầu -> Bấm "Go" hoặc "Start"
+    // 2. Màn hình "Please select test mode" / Chọn kiểu test lúc đầu (TRƯỚC KHI VÀO BÀI TEST)
+    // TUYỆT ĐỐI KHÔNG CHẠY KHI ĐANG TRONG BÀI THI CÓ CÂU HỎI TRẮC NGHIỆM!
+    const isTestQuestionPage = (
+      allDocsText.includes("Question ") ||
+      allDocsText.includes("Questions ") ||
+      allDocsText.includes("Part 1") ||
+      allDocsText.includes("Part 2") ||
+      allDocsText.includes("Part 3") ||
+      allDocsText.includes("Part 4") ||
+      allDocsText.includes("Part 5") ||
+      allDocsText.includes("Part 6") ||
+      allDocsText.includes("Part 7") ||
+      queryAllInDocs("input[type='radio']").filter(isElementVisible).length >= 3
+    );
+
     if (
-      allDocsText.includes("select test mode") || allDocsText.includes("test mode") ||
-      allDocsText.includes("Learning Mode") || allDocsText.includes("Practice Mode") ||
-      allDocsText.includes("Test Mode")
+      !isTestQuestionPage && (
+        allDocsText.includes("select test mode") || allDocsText.includes("Please select test mode") ||
+        currentUrl.includes("modeselect")
+      )
     ) {
-      // Nếu có radio chọn mode chưa chọn, tự động chọn mode đầu tiên
-      const modeRadios = queryAllInDocs("input[type='radio']").filter(isElementVisible);
+      // Chỉ chọn radio đích danh có thuộc tính mode, TUYỆT ĐỐI KHÔNG CHỌN RADIO CÂU HỎI BÀI THI!
+      const modeRadios = queryAllInDocs("input[type='radio'][name*='mode' i], input[type='radio'][id*='mode' i]").filter(isElementVisible);
       if (modeRadios.length > 0 && !modeRadios.some(r => isRadioSelected(r))) {
         checkRadioButtonSafely(modeRadios[0]);
       }
@@ -2130,14 +2150,14 @@
       return false;
     }
 
-    // Cooldown 1.5s để tránh kích hoạt dồn dập trong lúc trang đang tải
-    if (window._lastSectionTransitionClick && Date.now() - window._lastSectionTransitionClick < 1500) {
+    // Cooldown 1s để tránh kích hoạt dồn dập trong lúc trang đang tải
+    if (window._lastSectionTransitionClick && Date.now() - window._lastSectionTransitionClick < 1000) {
       return false;
     }
 
-    // 1. ƯU TIÊN HÀNG ĐẦU: Tìm kiếm trực tiếp nút chuyển tiếp Section (Start Section, Begin Section)
+    // 1. ƯU TIÊN SỐ 1: Tìm kiếm trực tiếp nút chuyển tiếp Section (Start Section, Begin Section, Start Part...)
     const candidates = queryAllInDocs(
-      "button, input[type='button'], input[type='submit'], [role='button'], a, div[class*='btn' i], div[class*='button' i], span[class*='btn' i], [class*='start' i], [id*='start' i], [class*='section' i], [id*='section' i]"
+      "button, input[type='button'], input[type='submit'], [role='button'], a, div, span, p"
     );
 
     for (const b of candidates) {
@@ -2150,33 +2170,31 @@
       const cl = (b.className || "").toString().toLowerCase();
 
       // Giới hạn độ dài văn bản để tránh chọn nhầm container bao trọn cả đoạn giới thiệu bài
-      const isShortText = normTxt.length > 0 && normTxt.length < 50;
+      const isShortText = normTxt.length > 0 && normTxt.length <= 40;
 
       const isStartSection = (isShortText && (
-        normTxt === "start section" || normTxt.includes("start section") ||
-        normTxt === "begin section" || normTxt.includes("begin section") ||
-        normTxt === "next section" || normTxt.includes("next section") ||
-        normTxt === "continue section" || normTxt.includes("continue section") ||
-        normTxt === "start part" || normTxt.includes("start part") ||
-        normTxt === "begin part" || normTxt.includes("begin part") ||
-        normTxt === "start test" || normTxt.includes("start test") ||
-        normTxt === "begin test" || normTxt.includes("begin test") ||
+        normTxt === "start section" || normTxt === "begin section" ||
+        normTxt === "start part" || normTxt === "begin part" ||
+        normTxt === "next section" || normTxt === "continue section" ||
+        normTxt === "start test" || normTxt === "begin test" ||
         normTxt.includes("bắt đầu phần") || normTxt.includes("tiếp tục phần") ||
         normTxt.includes("bắt đầu bài") ||
-        /start\s*section/i.test(normTxt) || /begin\s*section/i.test(normTxt) ||
-        (normTxt === "start" && (id.includes("section") || cl.includes("section") || b.closest(".modal, .dialog, [class*='section' i], [class*='part' i], div"))) ||
+        /^\s*start\s*section\s*$/i.test(normTxt) ||
+        /^\s*begin\s*section\s*$/i.test(normTxt) ||
+        (normTxt.includes("start section") && !normTxt.includes("directions")) ||
+        (normTxt === "start" && (id.includes("section") || cl.includes("section") || b.closest(".modal, .dialog, [class*='section' i], [class*='part' i]"))) ||
         id.includes("startsection") || cl.includes("startsection") ||
         id.includes("btnstartsection") || cl.includes("btnstartsection") ||
         id.includes("btn-start") || cl.includes("btn-start")
-      )) || (
-        /start\s*section/i.test(normTxt) || /begin\s*section/i.test(normTxt)
-      );
+      ));
 
       if (isStartSection) {
-        console.log("[AutoSection] 🚀 Phát hiện nút chuyển tiếp Section! Tự động nhấn:", b);
+        console.log("[AutoSection] 🚀 Phát hiện nút chuyển tiếp Section! Tự động nhấn:", b, rawTxt);
         window._lastSectionTransitionClick = Date.now();
-        showLoadingCard("🚀 Đang tự động chuyển sang Section tiếp theo...");
         triggerSmartClick(b);
+        try {
+          showAiToast("🚀 Tự động chuyển sang Section tiếp theo...", 2500);
+        } catch (e) {}
         return true;
       }
     }
@@ -2930,7 +2948,8 @@
     // 0. KIỂM TRA SỐ CÂU THEO TIÊU ĐỀ TRANG (VD: "Question 21 - 23 of 100" -> ĐÚNG 3 CÂU)
     // ƯU TIÊN SỐ 1: Tránh việc ngộ nhận chỉ có 1 câu hỏi khi trang có nhiều câu hỏi cùng lúc!
     const allDocs = getAllExerciseDocuments();
-    const fullText = (getCurrentQuestionTitle() || "") + "\n" + allDocs.map(d => d.body?.innerText || "").join("\n");
+    const docTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
+    const fullText = docTitles + "\n" + allDocs.map(d => d.body?.innerText || "").join("\n");
     const headerRange = fullText.match(/(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})/i);
     if (headerRange) {
       const qStart = parseInt(headerRange[1], 10);
@@ -4047,6 +4066,20 @@
         }
 
         if (optNode) {
+          // Bỏ chọn tất cả các radio khác trong cùng nhóm câu hỏi này để tránh bị lưu nhầm Option A hoặc nhiều đáp án
+          const parentGroup = grp || (optNode.name ? queryAllInDocs(`input[type='radio'][name="${optNode.name}"]`) : null);
+          if (parentGroup && Array.isArray(parentGroup)) {
+            parentGroup.forEach(r => {
+              if (r !== optNode && r.checked) {
+                r.checked = false;
+                try { r.removeAttribute('checked'); } catch (e) {}
+                try { r.setAttribute('aria-checked', 'false'); } catch (e) {}
+                const p = r.closest('label, tr, td, li, .choice, .option');
+                if (p) p.classList.remove('selected', 'active', 'checked', 'ui-state-active');
+              }
+            });
+          }
+
           await checkRadioButtonSafely(optNode);
           if (optNode.tagName === "INPUT" && optNode.type === "radio" && !optNode.checked) {
             optNode.checked = true;
@@ -4257,73 +4290,89 @@
       .replace(/'/g, "&#039;");
   }
 
+  let _isGettingQuestionTitle = false;
   function getCurrentQuestionTitle(solutions = [], questionsData = []) {
-    const allDocs = getAllExerciseDocuments();
-    const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
-    const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
-    const combinedSearchText = `${allTitles} ${allDocsText}`;
-
-    const partMatch = combinedSearchText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
-    const part = partMatch ? partMatch[1] : "";
-
-    // Xác định số lượng câu hỏi hiện tại trên màn hình
-    let questionCount = Math.max(solutions.length, questionsData.length);
-    if (questionCount <= 0) {
-      const radioGroups = groupRadioButtons();
-      if (radioGroups.length > 0) questionCount = radioGroups.length;
+    if (_isGettingQuestionTitle) {
+      return document.title || "Câu hỏi";
     }
+    _isGettingQuestionTitle = true;
+    try {
+      const allDocs = getAllExerciseDocuments();
+      const allDocsText = allDocs.map(d => d.body?.innerText || "").join(" ");
+      const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
+      const combinedSearchText = `${allTitles} ${allDocsText}`;
 
-    // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, Câu 80 đến 82, 80-82 of 200, Question 21 - 23)
-    const rangeMatch = combinedSearchText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—~～]|to|through|đến)+\s*(\d{1,3})\b/i) ||
-                       combinedSearchText.match(/\b(\d{1,3})\s*[-–—~～]\s*(\d{1,3})\s*(?:of|\/)\s*\d+\b/i);
-    if (rangeMatch) {
-      const q1 = parseInt(rangeMatch[1], 10);
-      const q2 = parseInt(rangeMatch[2], 10);
-      if (!isNaN(q1) && !isNaN(q2) && q1 >= 1 && q2 <= 200 && q2 >= q1) {
-        const qText = (q1 !== q2) ? `Câu ${q1} - ${q2}` : `Câu ${q1}`;
-        return part ? `${part} • ${qText}` : qText;
-      }
-    }
+      const partMatch = combinedSearchText.match(/(Listening Part\s*\d+|Reading Part\s*\d+|Part\s*\d+)/i);
+      const part = partMatch ? partMatch[1] : "";
 
-    // 2. Tìm các số câu từ từng item lời giải
-    if (questionCount > 0) {
-      const itemNums = [];
-      for (let i = 0; i < questionCount; i++) {
-        const itemTitle = getQuestionItemTitle(i, solutions[i], questionCount, questionsData);
-        const m = itemTitle.match(/\d+/);
-        if (m) itemNums.push(parseInt(m[0], 10));
+      // Xác định số lượng câu hỏi hiện tại trên màn hình
+      let questionCount = Math.max(solutions.length, questionsData.length);
+      if (questionCount <= 0) {
+        // Đếm số câu từ radio trực tiếp, KHÔNG gọi groupRadioButtons() để tránh đệ quy
+        const allRadios = getVisibleTestRadios();
+        if (allRadios.length === 12) questionCount = 3;
+        else if (allRadios.length === 8) questionCount = 2;
+        else if (allRadios.length === 16) questionCount = 4;
+        else if (allRadios.length >= 2 && allRadios.length <= 5) questionCount = 1;
+        else if (allRadios.length % 4 === 0 && allRadios.length > 0) questionCount = allRadios.length / 4;
       }
-      if (itemNums.length > 0) {
-        const minNum = Math.min(...itemNums);
-        let maxNum = Math.max(...itemNums);
-        // Nếu có nhiều hơn 1 câu (VD: 3 câu) nhưng maxNum bị trùng minNum, tự động tính câu kết thúc: minNum + count - 1
-        if (questionCount > 1 && maxNum <= minNum) {
-          maxNum = minNum + questionCount - 1;
-        }
-        const qText = (minNum !== maxNum) ? `Câu ${minNum} - ${maxNum}` : `Câu ${minNum}`;
-        return part ? `${part} • ${qText}` : qText;
-      }
-    }
 
-    // 3. Quét số câu đầu tiên xuất hiện trên trang (VD: Question 80, 80. What...)
-    const firstNumMatch = combinedSearchText.match(/(?:Questions?|Câu)\s*(\d{1,3})/i) ||
-                          combinedSearchText.match(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/);
-    if (firstNumMatch) {
-      const startNum = parseInt(firstNumMatch[1], 10);
-      if (startNum >= 1 && startNum <= 200) {
-        if (questionCount > 1) {
-          const endNum = startNum + questionCount - 1;
-          const qText = `Câu ${startNum} - ${endNum}`;
-          return part ? `${part} • ${qText}` : qText;
-        } else {
-          const qText = `Câu ${startNum}`;
+      // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, Câu 80 đến 82, 80-82 of 200, Question 21 - 23)
+      const rangeMatch = combinedSearchText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\s*(?:[-–—~～]|to|through|đến)+\s*(\d{1,3})\b/i) ||
+                         combinedSearchText.match(/\b(\d{1,3})\s*[-–—~～]\s*(\d{1,3})\s*(?:of|\/)\s*\d+\b/i);
+      if (rangeMatch) {
+        const q1 = parseInt(rangeMatch[1], 10);
+        const q2 = parseInt(rangeMatch[2], 10);
+        if (!isNaN(q1) && !isNaN(q2) && q1 >= 1 && q2 <= 200 && q2 >= q1) {
+          const qText = (q1 !== q2) ? `Câu ${q1} - ${q2}` : `Câu ${q1}`;
           return part ? `${part} • ${qText}` : qText;
         }
       }
-    }
 
-    if (part) return part;
-    return "AI Đã Giải Xong";
+      // 2. Tìm các số câu từ từng item lời giải
+      if (questionCount > 0) {
+        const itemNums = [];
+        for (let i = 0; i < questionCount; i++) {
+          const itemTitle = getQuestionItemTitle(i, solutions[i], questionCount, questionsData);
+          const m = itemTitle.match(/\d+/);
+          if (m) itemNums.push(parseInt(m[0], 10));
+        }
+        if (itemNums.length > 0) {
+          const minNum = Math.min(...itemNums);
+          let maxNum = Math.max(...itemNums);
+          // Nếu có nhiều hơn 1 câu (VD: 3 câu) nhưng maxNum bị trùng minNum, tự động tính câu kết thúc: minNum + count - 1
+          if (questionCount > 1 && maxNum <= minNum) {
+            maxNum = minNum + questionCount - 1;
+          }
+          const qText = (minNum !== maxNum) ? `Câu ${minNum} - ${maxNum}` : `Câu ${minNum}`;
+          return part ? `${part} • ${qText}` : qText;
+        }
+      }
+
+      // 3. Quét số câu đầu tiên xuất hiện trên trang (VD: Question 80, 80. What...)
+      const firstNumMatch = combinedSearchText.match(/(?:Questions?|Câu)\s*(\d{1,3})/i) ||
+                            combinedSearchText.match(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)]\s*[A-Za-z\?]/);
+      if (firstNumMatch) {
+        const startNum = parseInt(firstNumMatch[1], 10);
+        if (startNum >= 1 && startNum <= 200) {
+          if (questionCount > 1) {
+            const endNum = startNum + questionCount - 1;
+            const qText = `Câu ${startNum} - ${endNum}`;
+            return part ? `${part} • ${qText}` : qText;
+          } else {
+            const qText = `Câu ${startNum}`;
+            return part ? `${part} • ${qText}` : qText;
+          }
+        }
+      }
+
+      if (part) return part;
+      return "AI Đã Giải Xong";
+    } catch (e) {
+      return document.title || "Câu hỏi";
+    } finally {
+      _isGettingQuestionTitle = false;
+    }
   }
 
   function getQuestionItemTitle(index, sol, total, questionsData = []) {
@@ -4407,21 +4456,30 @@
       card.id = "ai-solver-card";
       document.body.appendChild(card);
     }
-    const currentTitle = getCurrentQuestionTitle() || "Thông báo";
-    card.innerHTML = `
-      <div class="ai-card-header">
-        <div class="ai-card-title"><span style="color:#ef4444;">⚠️</span> ${escapeHtml(currentTitle)}</div>
-        <button class="ai-card-close" id="ai-btn-card-close" title="Đóng">&times;</button>
-      </div>
-      <div style="padding: 16px 14px; color: #f87171; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
-        <div style="font-size: 22px;">⚠️</div>
-        <div style="font-weight: 700; color: #fca5a5;">Chưa lấy được lời giải AI</div>
-        <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4; word-break: break-word;">${escapeHtml(errorMsg)}</div>
-        <button id="ai-btn-card-retry" style="margin-top: 6px; padding: 5px 14px; font-size: 11.5px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(59,130,246,0.35);">
-          🔄 Thử lại bằng AI ngay
-        </button>
-      </div>
-    `;
+    let currentTitle = "Thông báo";
+    try {
+      currentTitle = getCurrentQuestionTitle() || "Thông báo";
+    } catch (e) {
+      currentTitle = "Thông báo";
+    }
+    try {
+      card.innerHTML = `
+        <div class="ai-card-header">
+          <div class="ai-card-title"><span style="color:#ef4444;">⚠️</span> ${escapeHtml(currentTitle)}</div>
+          <button class="ai-card-close" id="ai-btn-card-close" title="Đóng">&times;</button>
+        </div>
+        <div style="padding: 16px 14px; color: #f87171; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <div style="font-size: 22px;">⚠️</div>
+          <div style="font-weight: 700; color: #fca5a5;">Chưa lấy được lời giải AI</div>
+          <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4; word-break: break-word;">${escapeHtml(errorMsg)}</div>
+          <button id="ai-btn-card-retry" style="margin-top: 6px; padding: 5px 14px; font-size: 11.5px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(59,130,246,0.35);">
+            🔄 Thử lại bằng AI ngay
+          </button>
+        </div>
+      `;
+    } catch (renderErr) {
+      card.innerHTML = `<div style="padding:16px;color:#f87171;background:#0f172a;text-align:center;">⚠️ ${escapeHtml(errorMsg)}</div>`;
+    }
     const closeBtn = card.querySelector("#ai-btn-card-close");
     if (closeBtn) closeBtn.onclick = () => card.remove();
 
@@ -4461,18 +4519,29 @@
       card.id = "ai-solver-card";
       document.body.appendChild(card);
     }
-    const currentTitle = getCurrentQuestionTitle() || "Đang xử lý...";
-    card.innerHTML = `
-      <div class="ai-card-header">
-        <div class="ai-card-title"><span>⏳</span> ${escapeHtml(currentTitle)}</div>
-        <button class="ai-card-close" id="ai-btn-card-close" title="Đóng và dừng tiến trình">&times;</button>
-      </div>
-      <div style="padding: 24px 16px; color: #94a3b8; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px;">
-        <div style="font-size: 26px;">🎧</div>
-        <div style="color: #38bdf8; font-weight: 600;">${escapeHtml(message)}</div>
-        <div style="font-size: 11.5px; color: #64748b;">Đang tải âm thanh bài nghe của câu này, phân tích hình ảnh và phụ đề...</div>
-      </div>
-    `;
+
+    let currentTitle = "Đang xử lý...";
+    try {
+      currentTitle = getCurrentQuestionTitle() || "Đang xử lý...";
+    } catch (e) {
+      currentTitle = "Đang xử lý...";
+    }
+
+    try {
+      card.innerHTML = `
+        <div class="ai-card-header">
+          <div class="ai-card-title"><span>⏳</span> ${escapeHtml(currentTitle)}</div>
+          <button class="ai-card-close" id="ai-btn-card-close" title="Đóng và dừng tiến trình">&times;</button>
+        </div>
+        <div style="padding: 24px 16px; color: #94a3b8; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+          <div style="font-size: 26px;">🎧</div>
+          <div style="color: #38bdf8; font-weight: 600;">${escapeHtml(message)}</div>
+          <div style="font-size: 11.5px; color: #64748b;">Đang tải âm thanh bài nghe của câu này, phân tích hình ảnh và phụ đề...</div>
+        </div>
+      `;
+    } catch (renderErr) {
+      card.innerHTML = `<div style="padding:16px;color:#fff;background:#0f172a;text-align:center;">⏳ ${escapeHtml(message)}</div>`;
+    }
 
     setupDraggable(card);
     setupResizable(card);
