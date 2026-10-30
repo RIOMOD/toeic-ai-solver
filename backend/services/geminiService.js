@@ -81,6 +81,10 @@ const failedKeyCooldown = new Map();
 // Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, ưu tiên các model có quota dồi dào và hỗ trợ audio siêu tốc
 const CANDIDATE_MODELS = [
   "gemini-3-flash-preview",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.0-flash-lite",
   "gemini-3.1-flash-lite-preview",
   "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
@@ -143,7 +147,7 @@ Respond rapidly with MAXIMUM INTELLECT and ZERO ERRORS.
 
 =============================================================================
 CONTEXT FROM THE WEB PAGE:
-${pageText ? pageText.substring(0, 12000) : "N/A"}
+${pageText ? pageText.substring(0, 45000) : "N/A"}
 
 QUESTIONS TO SOLVE:
 ${JSON.stringify(finalQuestions, null, 2)}

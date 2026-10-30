@@ -146,27 +146,56 @@
     try {
       const detail = e.detail || {};
       let el = null;
-      if (detail.uid) {
-        el = document.querySelector(`[data-ai-click="${detail.uid}"]`);
-      }
-      if (!el && detail.selector) {
-        try { el = document.querySelector(detail.selector); } catch(ex) {}
-      }
-      if (!el && detail.text) {
-        const textToFind = detail.text.trim().toLowerCase();
-        const allCandidates = document.querySelectorAll("button, a, input, div, span, [role='button']");
-        for (const cand of allCandidates) {
-          const t = (cand.innerText || cand.value || "").trim().toLowerCase();
-          if (t === textToFind || t.includes(textToFind)) {
-            el = cand;
-            break;
-          }
+
+      // Tìm kiếm phần tử xuyên qua cả document chính lẫn tất cả iframes
+      function findInDocAndFrames(doc) {
+        if (!doc) return null;
+        if (detail.uid) {
+          try {
+            const found = doc.querySelector(`[data-ai-click="${detail.uid}"]`);
+            if (found) return found;
+          } catch(ex) {}
         }
+        if (detail.selector) {
+          try {
+            const found = doc.querySelector(detail.selector);
+            if (found) return found;
+          } catch(ex) {}
+        }
+        if (detail.text) {
+          const textToFind = detail.text.trim().toLowerCase();
+          try {
+            const allCandidates = doc.querySelectorAll("button, a, input, div, span, [role='button'], .btn");
+            for (const cand of allCandidates) {
+              const t = (cand.innerText || cand.value || "").trim().toLowerCase();
+              if (t === textToFind || (textToFind.length > 3 && t.includes(textToFind))) {
+                return cand;
+              }
+            }
+          } catch(ex) {}
+        }
+        try {
+          const iframes = doc.querySelectorAll("iframe, frame");
+          for (const ifr of iframes) {
+            try {
+              const innerDoc = ifr.contentDocument || ifr.contentWindow?.document;
+              if (innerDoc) {
+                const innerFound = findInDocAndFrames(innerDoc);
+                if (innerFound) return innerFound;
+              }
+            } catch(eIfr) {}
+          }
+        } catch(ex) {}
+        return null;
       }
 
+      el = findInDocAndFrames(document);
       if (!el) return;
 
-      const target = el.closest('button, a, input, [role="button"]') || el;
+      const target = el.closest('button, a, input, [role="button"], .btn, [onclick]') || el;
+      const targetDoc = target.ownerDocument || document;
+      const targetWin = targetDoc.defaultView || window;
+
       const rect = target.getBoundingClientRect();
       const cx = (rect.width > 0 && rect.left >= 0) ? (rect.left + rect.width / 2) : 150;
       const cy = (rect.height > 0 && rect.top >= 0) ? (rect.top + rect.height / 2) : 150;
@@ -175,14 +204,14 @@
         bubbles: true,
         cancelable: true,
         composed: true,
-        view: window,
+        view: targetWin,
         detail: 1,
-        screenX: Math.round(window.screenX + cx),
-        screenY: Math.round(window.screenY + cy),
+        screenX: Math.round(targetWin.screenX + cx),
+        screenY: Math.round(targetWin.screenY + cy),
         clientX: Math.round(cx),
         clientY: Math.round(cy),
-        pageX: Math.round(window.scrollX + cx),
-        pageY: Math.round(window.scrollY + cy),
+        pageX: Math.round(targetWin.scrollX + cx),
+        pageY: Math.round(targetWin.scrollY + cy),
         which: 1,
         button: 0,
         buttons: 1
@@ -232,19 +261,21 @@
         }
       }
 
-      // 5. Kiểm tra ASP.NET __doPostBack trực tiếp
-      if (typeof window.__doPostBack === 'function') {
+      // 5. Kiểm tra ASP.NET __doPostBack CHỈ KHI phần tử có chỉ định __doPostBack rõ ràng trong href hoặc onclick
+      // TUYỆT ĐỐI KHÔNG tự ý gọi __doPostBack trên các nút thuần client-side như "Start Section"
+      const targetWinPostBack = targetWin.__doPostBack || window.__doPostBack;
+      if (typeof targetWinPostBack === 'function') {
         const nameOrId = target.getAttribute('name') || target.id || el.getAttribute('name') || el.id;
-        if (nameOrId && (href?.includes('__doPostBack') || onclickAttr?.includes('__doPostBack') || /start|section|btn/i.test(nameOrId))) {
+        if (nameOrId && (href?.includes('__doPostBack') || onclickAttr?.includes('__doPostBack'))) {
           try {
-            console.log("[AI Shield] ⚡ Kích hoạt trực tiếp window.__doPostBack cho:", nameOrId);
-            window.__doPostBack(nameOrId, '');
+            console.log("[AI Shield] ⚡ Kích hoạt trực tiếp __doPostBack cho:", nameOrId);
+            targetWinPostBack(nameOrId, '');
           } catch(e) {}
         }
       }
 
-      // 6. Kích hoạt thông qua jQuery nếu trang có nạp jQuery
-      const $ = window.jQuery || window.$;
+      // 6. Kích hoạt thông qua jQuery nếu trang có nạp jQuery (kiểm tra cả targetWin và window)
+      const $ = targetWin.jQuery || targetWin.$ || window.jQuery || window.$;
       if ($) {
         try {
           $(target).trigger('click');
@@ -252,15 +283,23 @@
         } catch(e) {}
       }
 
-      // 7. Đặc thù Start Section trên ETS Test
-      if (detail.text && /start\s*section/i.test(detail.text)) {
-        try {
-          if (typeof window.startSection === 'function') window.startSection();
-          if (typeof window.StartSection === 'function') window.StartSection();
-          if (typeof window.NextSection === 'function') window.NextSection();
-          if (typeof window.doNext === 'function') window.doNext();
-          if (typeof window.btnStartSection_Click === 'function') window.btnStartSection_Click();
-        } catch (exFunc) {}
+      // 7. Đặc thù Start Section / Bắt đầu phần thi trên ETS OLPC và các hệ thống thi trắc nghiệm
+      if (detail.text && /start|section|begin/i.test(detail.text)) {
+        [targetWin, window].forEach(w => {
+          if (!w) return;
+          try {
+            if (typeof w.startSection === 'function') w.startSection();
+            if (typeof w.StartSection === 'function') w.StartSection();
+            if (typeof w.nextSection === 'function') w.nextSection();
+            if (typeof w.NextSection === 'function') w.NextSection();
+            if (typeof w.doNext === 'function') w.doNext();
+            if (typeof w.startTest === 'function') w.startTest();
+            if (typeof w.StartTest === 'function') w.StartTest();
+            if (typeof w.btnStartSection_Click === 'function') w.btnStartSection_Click();
+            if (typeof w.btnStart_Click === 'function') w.btnStart_Click();
+            if (typeof w.onStartSection === 'function') w.onStartSection();
+          } catch (exFunc) {}
+        });
       }
 
       console.log("[AI Shield] 🎯 Đã thực hiện Full Main World Click thành công cho phần tử:", target);
@@ -268,8 +307,9 @@
       console.warn('[AI Shield Click Error]', err);
     } finally {
       if (detail && detail.uid) {
-        const marked = document.querySelectorAll(`[data-ai-click="${detail.uid}"]`);
-        marked.forEach(m => m.removeAttribute('data-ai-click'));
+        try {
+          document.querySelectorAll(`[data-ai-click="${detail.uid}"]`).forEach(m => m.removeAttribute('data-ai-click'));
+        } catch(e) {}
       }
     }
   });

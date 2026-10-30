@@ -159,7 +159,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     try {
       const targetWinId = sender?.tab?.windowId || null;
-      chrome.tabs.captureVisibleTab(targetWinId, { format: "jpeg", quality: 40 }, (dataUrl) => {
+      chrome.tabs.captureVisibleTab(targetWinId, { format: "jpeg", quality: 95 }, (dataUrl) => {
         if (chrome.runtime.lastError || !dataUrl) {
           safeSend({ success: false, error: chrome.runtime.lastError?.message || "Không thể chụp màn hình tab" });
         } else {

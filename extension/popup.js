@@ -35,9 +35,9 @@ document.addEventListener("DOMContentLoaded", () => {
         chkRun247.checked = res.run247Mode !== false;
       }
 
-      // Auto Next Mode
+      // Auto Next Mode (Mặc định bật true)
       if (chkAutoNext) {
-        chkAutoNext.checked = Boolean(res.autoNextMode);
+        chkAutoNext.checked = res.autoNextMode !== false;
       }
 
       // Ẩn / Hiện bong bóng trên web
