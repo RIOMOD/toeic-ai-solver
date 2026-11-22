@@ -1477,32 +1477,32 @@
           await sleep(1500);
           dismissModals();
 
-          // A. KIỂM TRA MODAL: Xem modal Assessment Center đã mở trên màn hình chưa
-          const acModal = getAssessmentCenterModal();
-          if (acModal) {
-            // Modal đã mở: Tìm nút Start Test của bài thi đầu tiên có sẵn
-            const startTestBtn = findAssessmentCenterStartTestButton();
-            if (startTestBtn) {
-              console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong Assessment Center:", startTestBtn);
-              showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
-              triggerSmartClick(startTestBtn);
-              try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
-              const p = startTestBtn.closest("button, a, div[role='button'], .btn");
-              if (p && p !== startTestBtn) {
-                try { if (typeof p.click === "function") p.click(); } catch(e) {}
-              }
-              try {
-                const uid = "ac_test_" + Date.now();
-                startTestBtn.setAttribute("data-ai-click", uid);
-                window.dispatchEvent(new CustomEvent("ai_trigger_click", {
-                  detail: { uid, text: startTestBtn.innerText || "start test" }
-                }));
-              } catch(e) {}
-              await sleep(4000);
-              continue;
+          // A. ƯU TIÊN 1: Tìm và nhấn ngay nút [ Start Test ] nếu modal Assessment Center đang mở
+          const startTestBtn = findAssessmentCenterStartTestButton();
+          if (startTestBtn) {
+            console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong Assessment Center:", startTestBtn);
+            showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
+            triggerSmartClick(startTestBtn);
+            try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
+            const p = startTestBtn.closest("button, a, div[role='button'], .btn, [ng-click]");
+            if (p && p !== startTestBtn) {
+              try { if (typeof p.click === "function") p.click(); } catch(e) {}
             }
-          } else {
-            // Modal chưa mở: Tự động bấm vào icon Assessment Center trên thanh bên trái
+            try {
+              const uid = "ac_test_" + Date.now();
+              startTestBtn.setAttribute("data-ai-click", uid);
+              window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+                detail: { uid, text: "start test" }
+              }));
+            } catch(e) {}
+            await sleep(4000);
+            continue;
+          }
+
+          // B. Nếu chưa thấy nút Start Test: Kiểm tra xem modal Assessment Center đã mở chưa
+          const acModal = getAssessmentCenterModal();
+          if (!acModal) {
+            // Modal chưa mở: Bấm mở từ thanh bên trái
             console.log("[MasterAuto] 📂 Modal Assessment Center chưa mở. Đang click mở từ thanh bên trái...");
             openAssessmentCenter();
             await sleep(2500);
@@ -1536,30 +1536,28 @@
   }
 
   function getAssessmentCenterModal() {
-    // Chỉ tìm kiếm các container modal thực thụ, KHÔNG lấy thẻ 'div' generic của cả trang
-    const modalCandidates = queryAllInDocs(".modal, [role='dialog'], .modal-dialog, .modal-content, .ui-dialog, [class*='modal' i]");
+    // 1. Quét các thẻ dialog/modal
+    const modalCandidates = queryAllInDocs(".modal, [role='dialog'], .modal-dialog, .modal-content, .ui-dialog, [class*='modal' i], [class*='dialog' i]");
     for (const m of modalCandidates) {
       if (isAiElement(m)) continue;
-      // Bỏ qua nếu là wrapper toàn trang hoặc không hiển thị
       const rect = m.getBoundingClientRect();
-      if (rect.width < 250 || rect.height < 150) continue;
-      if (rect.width >= window.innerWidth * 0.99 && rect.height >= window.innerHeight * 0.99 && !m.classList.contains("modal")) continue;
-
-      const style = window.getComputedStyle(m);
-      if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
-
+      if (rect.width < 200 || rect.height < 100) continue;
       const t = (m.innerText || m.textContent || "").toLowerCase();
-      // Phải có tiêu đề "Assessment Center" và có nội dung danh sách bài thi
       if (t.includes("assessment center") && (t.includes("available tests") || t.includes("start test") || t.includes("module"))) {
         return m;
       }
+    }
+    // 2. Quét tìm container bao quanh nút Start Test nếu đã hiển thị
+    const startBtn = findAssessmentCenterStartTestButton();
+    if (startBtn) {
+      return startBtn.closest(".modal, [role='dialog'], .modal-dialog, .modal-content, div") || startBtn.parentElement;
     }
     return null;
   }
 
   function openAssessmentCenter() {
-    // 1. Nếu modal Assessment Center đã mở sẵn trên màn hình
-    if (getAssessmentCenterModal()) {
+    // 1. Nếu nút Start Test hoặc modal Assessment Center đã mở sẵn trên màn hình
+    if (findAssessmentCenterStartTestButton() || getAssessmentCenterModal()) {
       return true;
     }
 
@@ -1648,56 +1646,59 @@
   }
 
   function findAssessmentCenterStartTestButton() {
-    // 0. BẢO VỆ TUYỆT ĐỐI: CHỈ tìm nút Start Test khi modal Assessment Center THỰC SỰ ĐANG MỞ!
-    const modal = getAssessmentCenterModal();
-    if (!modal) {
-      return null;
-    }
-
-    // 1. Quét tất cả các phần tử BÊN TRONG MODAL có chữ "Start Test"
-    const candidates = Array.from(modal.querySelectorAll("button, a, input, div, span, p, [role='button'], .btn")).filter(el => {
-      if (isAiElement(el) || !isElementVisible(el)) return false;
+    // 1. Quét tất cả các phần tử BÊN TRONG MODAL hoặc TOÀN TRANG có chữ "Start Test"
+    const candidates = queryAllInDocs("button, a, input, div, span, p, [role='button'], .btn").filter(el => {
+      if (isAiElement(el)) return false;
       const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || "").trim();
       const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
 
-      // BẢO VỆ TUYỆT ĐỐI: Bỏ qua "Start Over"
+      // BẢO VỆ TUYỆT ĐỐI: Bỏ qua "Start Over" hoặc "Bắt đầu lại"
       if (norm.includes("start over") || norm.includes("bắt đầu lại")) return false;
 
       // Nút Start Test
-      if (norm === "start test" || norm.includes("start test") || /start\s*test/i.test(norm)) return true;
+      if (norm === "start test" || /^\s*start\s*test\s*$/i.test(norm) || norm.startsWith("start test")) return true;
       const cl = (el.className || "").toString().toLowerCase();
       const id = (el.id || "").toLowerCase();
-      if ((cl.includes("starttest") || cl.includes("start-test") || id.includes("starttest")) && !norm.includes("over")) return true;
+      const ngClick = (el.getAttribute("ng-click") || "").toLowerCase();
+      if ((cl.includes("starttest") || id.includes("starttest") || ngClick.includes("starttest")) && !norm.includes("over")) return true;
       return false;
     });
 
     for (const b of candidates) {
-      const targetBtn = b.closest("button, a, input, [role='button'], .btn") || b;
+      const targetBtn = b.closest("button, a, input, [role='button'], div.btn, .btn, [ng-click]") || b;
       if (!targetBtn.disabled && !targetBtn.classList.contains("disabled") && !targetBtn.getAttribute("disabled")) {
-        const txt = (targetBtn.innerText || targetBtn.value || "").toLowerCase();
-        if (txt.includes("start over")) continue;
-        console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test chuẩn xác trong Assessment Center:", targetBtn);
-        return targetBtn;
+        const r = targetBtn.getBoundingClientRect();
+        if (r.width > 20 && r.height > 10) {
+          const txt = (targetBtn.innerText || targetBtn.textContent || targetBtn.value || "").toLowerCase();
+          if (txt.includes("start over")) continue;
+          console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test chuẩn xác:", targetBtn);
+          return targetBtn;
+        }
       }
     }
 
-    // 2. Fallback: Nếu không tìm thấy trực tiếp bằng text nút, tìm hàng trong modal chứa tên bài thi và lấy nút "Start Test"
-    const rows = Array.from(modal.querySelectorAll("tr, li, .row, div")).filter(row => {
+    // 2. Fallback: Quét các hàng bài thi và lấy nút
+    const rows = queryAllInDocs("tr, li, .row, div").filter(row => {
       if (isAiElement(row)) return false;
+      const r = row.getBoundingClientRect();
+      if (r.width < 100 || r.height < 15 || r.width > window.innerWidth * 0.95) return false;
       const t = (row.innerText || row.textContent || "").toLowerCase();
+      if (t.includes("course completion") || t.includes("license expiration") || t.includes("start over")) return false;
       return (t.includes("midterm") || t.includes("final") || (t.includes("module") && t.includes("test"))) && !t.includes("result");
     });
 
     for (const row of rows) {
-      const btns = Array.from(row.querySelectorAll("button, a, input, [role='button'], div.btn, .btn, [class*='btn' i]"));
+      const btns = Array.from(row.querySelectorAll("button, a, input, [role='button'], div.btn, .btn, [class*='btn' i], [ng-click]"));
       for (const btn of btns) {
-        if (!isAiElement(btn) && isElementVisible(btn) && !btn.disabled) {
-          const btnTxt = (btn.innerText || btn.textContent || btn.value || "").trim().toLowerCase();
-          // TUYỆT ĐỐI KHÔNG BẤM START OVER!
-          if (btnTxt.includes("start over")) continue;
-          if (btnTxt === "start test" || btnTxt.includes("start test") || btnTxt.includes("test") || btnTxt === "start") {
-            console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong hàng bài thi:", btn);
-            return btn;
+        if (!isAiElement(btn) && !btn.disabled) {
+          const r = btn.getBoundingClientRect();
+          if (r.width > 20 && r.height > 10) {
+            const btnTxt = (btn.innerText || btn.textContent || btn.value || "").trim().toLowerCase();
+            if (btnTxt.includes("start over")) continue;
+            if (btnTxt === "start test" || btnTxt.includes("start test") || btnTxt.includes("test") || btnTxt === "start") {
+              console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong hàng bài thi:", btn);
+              return btn;
+            }
           }
         }
       }
@@ -2052,8 +2053,8 @@
       } catch (e) {}
     }
 
-    // 3. Kiểm tra xem phần tử có nằm trong modal/dialog bị ẩn hoặc có thuộc tính hidden không
-    if (el.closest('[hidden], [aria-hidden="true"], .modal:not(.show):not(.in):not(.active), .dialog:not(.show):not(.in):not(.active), [style*="display: none"], [style*="display:none"], [style*="visibility: hidden"], [style*="visibility:hidden"]')) {
+    // 3. Kiểm tra xem phần tử có nằm trong thẻ có thuộc tính hidden hoặc display: none không
+    if (el.closest('[hidden], [style*="display: none"], [style*="display:none"], [style*="visibility: hidden"], [style*="visibility:hidden"]')) {
       return false;
     }
 
