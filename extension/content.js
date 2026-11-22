@@ -1477,39 +1477,20 @@
           await sleep(1500);
           dismissModals();
 
-          // A. ƯU TIÊN 1: Kiểm tra xem modal Assessment Center có đang mở và có bài thi sẵn sàng làm không
-          let startTestBtn = findAssessmentCenterStartTestButton();
-          if (startTestBtn) {
-            console.log("[MasterAuto] 🎯 Bấm nút Start Test trong Assessment Center:", startTestBtn);
-            showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
-            triggerSmartClick(startTestBtn);
-            try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
-            try {
-              const uid = "ac_test_" + Date.now();
-              startTestBtn.setAttribute("data-ai-click", uid);
-              window.dispatchEvent(new CustomEvent("ai_trigger_click", {
-                detail: { uid, text: startTestBtn.innerText || "start test" }
-              }));
-            } catch(e) {}
-            await sleep(4000);
-            continue;
-          }
-
-          // B. Nếu Assessment Center chưa mở, thử mở Assessment Center trên menu bên trái
-          const acOpened = openAssessmentCenter();
-          if (acOpened) {
-            let startTestBtn = null;
-            const startWaitModal = Date.now();
-            while (Date.now() - startWaitModal < 4500) {
-              await sleep(350);
-              startTestBtn = findAssessmentCenterStartTestButton();
-              if (startTestBtn) break;
-            }
+          // A. KIỂM TRA MODAL: Xem modal Assessment Center đã mở trên màn hình chưa
+          const acModal = getAssessmentCenterModal();
+          if (acModal) {
+            // Modal đã mở: Tìm nút Start Test của bài thi đầu tiên có sẵn
+            const startTestBtn = findAssessmentCenterStartTestButton();
             if (startTestBtn) {
-              console.log("[MasterAuto] 🎯 Bấm nút Start Test sau khi mở Assessment Center:", startTestBtn);
+              console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong Assessment Center:", startTestBtn);
               showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
               triggerSmartClick(startTestBtn);
               try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
+              const p = startTestBtn.closest("button, a, div[role='button'], .btn");
+              if (p && p !== startTestBtn) {
+                try { if (typeof p.click === "function") p.click(); } catch(e) {}
+              }
               try {
                 const uid = "ac_test_" + Date.now();
                 startTestBtn.setAttribute("data-ai-click", uid);
@@ -1520,6 +1501,12 @@
               await sleep(4000);
               continue;
             }
+          } else {
+            // Modal chưa mở: Tự động bấm vào icon Assessment Center trên thanh bên trái
+            console.log("[MasterAuto] 📂 Modal Assessment Center chưa mở. Đang click mở từ thanh bên trái...");
+            openAssessmentCenter();
+            await sleep(2500);
+            continue;
           }
 
           // C. ƯU TIÊN 2: Tìm nút Continue chính ở banner lớn
@@ -1548,20 +1535,43 @@
     }
   }
 
+  function getAssessmentCenterModal() {
+    // Chỉ tìm kiếm các container modal thực thụ, KHÔNG lấy thẻ 'div' generic của cả trang
+    const modalCandidates = queryAllInDocs(".modal, [role='dialog'], .modal-dialog, .modal-content, .ui-dialog, [class*='modal' i]");
+    for (const m of modalCandidates) {
+      if (isAiElement(m)) continue;
+      // Bỏ qua nếu là wrapper toàn trang hoặc không hiển thị
+      const rect = m.getBoundingClientRect();
+      if (rect.width < 250 || rect.height < 150) continue;
+      if (rect.width >= window.innerWidth * 0.99 && rect.height >= window.innerHeight * 0.99 && !m.classList.contains("modal")) continue;
+
+      const style = window.getComputedStyle(m);
+      if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+
+      const t = (m.innerText || m.textContent || "").toLowerCase();
+      // Phải có tiêu đề "Assessment Center" và có nội dung danh sách bài thi
+      if (t.includes("assessment center") && (t.includes("available tests") || t.includes("start test") || t.includes("module"))) {
+        return m;
+      }
+    }
+    return null;
+  }
+
   function openAssessmentCenter() {
     // 1. Nếu modal Assessment Center đã mở sẵn trên màn hình
-    const modalHeader = queryAllInDocs("h1, h2, h3, h4, div, span").find(el => {
-      if (isAiElement(el) || !isElementVisible(el)) return false;
-      const t = (el.innerText || "").trim().toLowerCase();
-      return t === "assessment center" || t.includes("assessment center");
-    });
-    if (modalHeader && modalHeader.closest(".modal, .dialog, [role='dialog'], [class*='modal' i]")) {
+    if (getAssessmentCenterModal()) {
       return true;
     }
 
-    // 2. Tìm phần tử menu chứa từ khóa "assessment"
-    const sideNavItems = queryAllInDocs("a, button, li, div, i, span, svg").filter(el => {
+    // 2. Tìm tất cả các phần tử trên thanh menu dọc bên trái (rect.left < 100, rect.top > 50)
+    const allLeftElements = queryAllInDocs("a, button, li, div, i, span, svg").filter(el => {
       if (isAiElement(el) || !isElementVisible(el)) return false;
+      const r = el.getBoundingClientRect();
+      return r.left >= 0 && r.left < 100 && r.top > 50 && r.top < 650;
+    });
+
+    // 2a. Tìm phần tử có tooltip/title/class/ng-click hoặc text chứa "assessment"
+    const matched = allLeftElements.find(el => {
       const title = (el.getAttribute("title") || "").toLowerCase();
       const tooltip = (
         el.getAttribute("data-original-title") ||
@@ -1574,87 +1584,122 @@
       const text = (el.innerText || "").toLowerCase();
       const cl = (el.className || "").toString().toLowerCase();
       const id = (el.id || "").toLowerCase();
-      const href = (el.getAttribute("href") || "").toLowerCase();
+      const ngClick = (el.getAttribute("ng-click") || "").toLowerCase();
+
       return (
         title.includes("assessment") || tooltip.includes("assessment") ||
         text.includes("assessment") || id.includes("assessment") || cl.includes("assessment") ||
-        href.includes("assessment") || href.includes("test")
+        ngClick.includes("assessment")
       );
     });
 
-    if (sideNavItems.length > 0) {
-      console.log("[MasterAuto] 🎯 Click mở Assessment Center trên menu (theo keyword/tooltip):", sideNavItems[0]);
+    let targetToClick = matched;
+
+    // 2b. Nếu không tìm thấy bằng keyword, lấy icon thứ 3 (index 2) trong các mục menu dọc chính ở lề trái
+    if (!targetToClick) {
+      const topLevelNavItems = allLeftElements.filter(el => {
+        const r = el.getBoundingClientRect();
+        return r.width >= 24 && r.height >= 24 && (el.tagName === "LI" || el.tagName === "A" || el.tagName === "BUTTON" || el.getAttribute("role") === "button");
+      });
+      const uniqueItems = topLevelNavItems.filter(el => !topLevelNavItems.some(o => o !== el && o.contains(el)));
+      uniqueItems.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+
+      if (uniqueItems.length >= 3) {
+        // Index 2 thường là Assessment Center (clipboard)
+        targetToClick = uniqueItems[Math.min(2, uniqueItems.length - 1)];
+      } else if (uniqueItems.length > 0) {
+        targetToClick = uniqueItems[uniqueItems.length - 1];
+      }
+    }
+
+    if (targetToClick) {
+      console.log("[MasterAuto] 🎯 Click mở Assessment Center trên menu:", targetToClick);
       showAiToast("📂 Đang mở Assessment Center...", 2000);
-      triggerSmartClick(sideNavItems[0]);
+
+      triggerSmartClick(targetToClick);
+      try { if (typeof targetToClick.click === "function") targetToClick.click(); } catch(e) {}
+      const p = targetToClick.closest("a, li, button, [role='button']");
+      if (p && p !== targetToClick) {
+        try { if (typeof p.click === "function") p.click(); } catch(e) {}
+      }
+
+      try {
+        const uid = "open_ac_" + Date.now();
+        targetToClick.setAttribute("data-ai-click", uid);
+        window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+          detail: { uid, text: "assessment" }
+        }));
+      } catch(e) {}
       return true;
     }
 
-    // 3. Fallback: Toàn bộ icon thanh bên xếp dọc ở lề trái (rect.left < 90px)
-    const allLeftNavIcons = queryAllInDocs("a, button, li, div[role='button']").filter(el => {
-      if (isAiElement(el) || !isElementVisible(el)) return false;
-      const r = el.getBoundingClientRect();
-      return r.left >= 0 && r.left < 90 && r.width >= 20 && r.height >= 20 && r.top > 40;
-    });
-
-    if (allLeftNavIcons.length >= 3) {
-      allLeftNavIcons.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-      // Index 2 hoặc 3 trên thanh bên là icon Assessment Center (clipboard)
-      const targetNav = allLeftNavIcons.find(el => {
-        const cl = (el.className || "").toString().toLowerCase();
-        return cl.includes("assessment") || cl.includes("test");
-      }) || allLeftNavIcons[Math.min(2, allLeftNavIcons.length - 1)];
-
-      console.log("[MasterAuto] 🎯 Click mở Assessment Center theo vị trí icon trên thanh bên trái:", targetNav);
-      showAiToast("📂 Đang mở Assessment Center từ thanh bên...", 2000);
-      triggerSmartClick(targetNav);
-      return true;
-    }
+    // 2c. Fallback bằng tọa độ điểm x=35, y=390 (vị trí icon Assessment Center trên thanh sidebar)
+    try {
+      const elAtPoint = document.elementFromPoint(35, 390);
+      if (elAtPoint && !isAiElement(elAtPoint)) {
+        console.log("[MasterAuto] 🎯 Click mở Assessment Center theo tọa độ (35, 390):", elAtPoint);
+        triggerSmartClick(elAtPoint);
+        try { if (typeof elAtPoint.click === "function") elAtPoint.click(); } catch(e) {}
+        return true;
+      }
+    } catch(e) {}
 
     return false;
   }
 
   function findAssessmentCenterStartTestButton() {
-    // 1. Quét tất cả các phần tử có chữ "Start Test" hoặc class/id liên quan
-    const all = queryAllInDocs("button, a, input, div, span, p, [role='button']");
-    const candidates = all.filter(el => {
-      if (isAiElement(el)) return false;
+    // 0. BẢO VỆ TUYỆT ĐỐI: CHỈ tìm nút Start Test khi modal Assessment Center THỰC SỰ ĐANG MỞ!
+    const modal = getAssessmentCenterModal();
+    if (!modal) {
+      return null;
+    }
+
+    // 1. Quét tất cả các phần tử BÊN TRONG MODAL có chữ "Start Test"
+    const candidates = Array.from(modal.querySelectorAll("button, a, input, div, span, p, [role='button'], .btn")).filter(el => {
+      if (isAiElement(el) || !isElementVisible(el)) return false;
       const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || "").trim();
       const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
+
+      // BẢO VỆ TUYỆT ĐỐI: Bỏ qua "Start Over"
+      if (norm.includes("start over") || norm.includes("bắt đầu lại")) return false;
+
+      // Nút Start Test
+      if (norm === "start test" || norm.includes("start test") || /start\s*test/i.test(norm)) return true;
       const cl = (el.className || "").toString().toLowerCase();
       const id = (el.id || "").toLowerCase();
-
-      if (norm === "start test" || norm.includes("start test") || /start\s*test/i.test(norm)) return true;
-      if (cl.includes("starttest") || cl.includes("start-test") || id.includes("starttest")) return true;
+      if ((cl.includes("starttest") || cl.includes("start-test") || id.includes("starttest")) && !norm.includes("over")) return true;
       return false;
     });
 
     for (const b of candidates) {
-      if (!b.disabled && !b.classList.contains("disabled") && !b.getAttribute("disabled")) {
-        const parentRow = b.closest("tr, li, .row, div");
-        const rowText = (parentRow?.innerText || parentRow?.textContent || "").toLowerCase();
-        if (rowText.includes("midterm") || rowText.includes("final") || rowText.includes("module") || rowText.includes("test")) {
-          console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test chuẩn xác cho bài thi:", b, rowText.replace(/\n+/g, " ").trim());
-          return b;
-        }
-        return b;
+      const targetBtn = b.closest("button, a, input, [role='button'], .btn") || b;
+      if (!targetBtn.disabled && !targetBtn.classList.contains("disabled") && !targetBtn.getAttribute("disabled")) {
+        const txt = (targetBtn.innerText || targetBtn.value || "").toLowerCase();
+        if (txt.includes("start over")) continue;
+        console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test chuẩn xác trong Assessment Center:", targetBtn);
+        return targetBtn;
       }
     }
 
-    if (candidates.length > 0) return candidates[0];
-
-    // 2. Fallback: Tìm hàng chứa tên bài test (Midterm / Final) và lấy nút trong hàng đó
-    const rows = queryAllInDocs("tr, li, .row, div").filter(row => {
+    // 2. Fallback: Nếu không tìm thấy trực tiếp bằng text nút, tìm hàng trong modal chứa tên bài thi và lấy nút "Start Test"
+    const rows = Array.from(modal.querySelectorAll("tr, li, .row, div")).filter(row => {
       if (isAiElement(row)) return false;
       const t = (row.innerText || row.textContent || "").toLowerCase();
-      return (t.includes("midterm test") || t.includes("final test") || t.includes("module 2") || t.includes("module 3")) &&
-             (t.includes("start") || t.includes("test"));
+      return (t.includes("midterm") || t.includes("final") || (t.includes("module") && t.includes("test"))) && !t.includes("result");
     });
 
     for (const row of rows) {
-      const btnInRow = row.querySelector("button, a, input, [role='button'], div.btn, .btn, [class*='btn' i]");
-      if (btnInRow && !isAiElement(btnInRow) && !btnInRow.disabled) {
-        console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong hàng bài thi:", btnInRow);
-        return btnInRow;
+      const btns = Array.from(row.querySelectorAll("button, a, input, [role='button'], div.btn, .btn, [class*='btn' i]"));
+      for (const btn of btns) {
+        if (!isAiElement(btn) && isElementVisible(btn) && !btn.disabled) {
+          const btnTxt = (btn.innerText || btn.textContent || btn.value || "").trim().toLowerCase();
+          // TUYỆT ĐỐI KHÔNG BẤM START OVER!
+          if (btnTxt.includes("start over")) continue;
+          if (btnTxt === "start test" || btnTxt.includes("start test") || btnTxt.includes("test") || btnTxt === "start") {
+            console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong hàng bài thi:", btn);
+            return btn;
+          }
+        }
       }
     }
 
@@ -2357,14 +2402,18 @@
     }
 
     if (hasSelectModeText && (isTestModeSelected || testModeSelectEl)) {
+      // Đóng combobox nếu nó đang mở/active
+      try { testModeSelectEl?.blur(); } catch(e) {}
+      try { document.body.focus(); } catch(e) {}
+
       // Tìm nút "Go" màu xanh biển bên dưới dropdown (Image 3)
       const allGoCandidates = queryAllInDocs(
-        "#btnGo, [name='btnGo'], [id*='btnGo' i], [id*='btn_go' i], [id='go' i], button, a, input, div, span, [role='button']"
+        "#btnGo, [name='btnGo'], [id*='btnGo' i], [name*='go' i], [id*='btn_go' i], [id='go' i], input, button, a, [role='button'], div, span"
       );
 
       let goBtn = allGoCandidates.find(el => {
         if (isAiElement(el) || el === testModeSelectEl) return false;
-        const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || "").trim();
+        const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || el.getAttribute("alt") || "").trim();
         const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
         const id = (el.id || "").toLowerCase();
         const cl = (el.className || "").toString().toLowerCase();
@@ -2377,10 +2426,10 @@
 
       if (!goBtn && testModeSelectEl) {
         const container = testModeSelectEl.closest("div, form, table, .modal, .dialog") || document;
-        goBtn = Array.from(container.querySelectorAll("button, a, input[type='button'], input[type='submit'], [role='button'], div, span")).find(el => {
+        goBtn = Array.from(container.querySelectorAll("input, button, a, [role='button'], div, span")).find(el => {
           if (isAiElement(el) || el === testModeSelectEl || el.tagName === "SELECT" || el.tagName === "OPTION") return false;
           const r = el.getBoundingClientRect();
-          const t = (el.innerText || el.value || "").trim().toLowerCase();
+          const t = (el.innerText || el.value || el.getAttribute("alt") || "").trim().toLowerCase();
           return (r.width > 20 && r.height > 15 && (t === "go" || t.length <= 4 || el.tagName === "INPUT" || el.tagName === "BUTTON" || el.tagName === "A"));
         });
       }
@@ -2394,13 +2443,8 @@
           const uid = "go_" + Date.now();
           goBtn.setAttribute("data-ai-click", uid);
           window.dispatchEvent(new CustomEvent("ai_trigger_click", {
-            detail: { uid, text: "Go" }
+            detail: { uid, text: "Go", name: "btnGo" }
           }));
-        } catch(e) {}
-        try {
-          if (goBtn.form && typeof goBtn.form.submit === "function") {
-            goBtn.form.submit();
-          }
         } catch(e) {}
         return true;
       }
@@ -2549,7 +2593,7 @@
     }
 
     const candidates = queryAllInDocs(
-      "button, a, input[type='button'], input[type='submit'], [role='button'], div, span, p"
+      "button, a, input, [role='button'], div, span, p, img"
     );
 
     const hasVisibleQuestions = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(r => !isAiElement(r) && isElementVisible(r));
@@ -2558,12 +2602,19 @@
       if (isAiElement(b) || !isElementVisible(b)) continue;
       if (isDangerousSubmitButton(b)) continue;
 
-      const rawTxt = (b.innerText || b.value || b.getAttribute("title") || b.getAttribute("aria-label") || "").trim();
+      const rawTxt = (
+        b.innerText || b.value ||
+        b.getAttribute("alt") || b.getAttribute("title") ||
+        b.getAttribute("aria-label") || b.getAttribute("name") ||
+        b.getAttribute("src") || ""
+      ).trim();
       const normTxt = rawTxt.replace(/[\s\u00A0\u200B]+/g, ' ').toLowerCase();
       const id = (b.id || "").toLowerCase();
       const cl = (b.className || "").toString().toLowerCase();
+      const name = (b.getAttribute("name") || "").toLowerCase();
+      const src = (b.getAttribute("src") || "").toLowerCase();
 
-      if (normTxt.length === 0 && !id && !cl) continue;
+      if (normTxt.length === 0 && !id && !cl && !name && !src) continue;
       if (normTxt.length > 50) continue;
 
       // 1. Kiểm tra các định dạng nút chuyển tiếp Section rõ ràng
@@ -2579,12 +2630,14 @@
         normTxt.includes("bắt đầu phần") || normTxt.includes("tiếp tục phần") ||
         normTxt.includes("bắt đầu bài") || normTxt.includes("bắt đầu làm bài") ||
         normTxt.includes("bắt đầu thi") ||
-        /^\s*start\s*section\s*$/i.test(normTxt) ||
-        /^\s*begin\s*section\s*$/i.test(normTxt) ||
+        /start\s*section/i.test(normTxt) ||
+        /begin\s*section/i.test(normTxt) ||
         id.includes("startsection") || cl.includes("startsection") ||
         id.includes("btnstartsection") || cl.includes("btnstartsection") ||
         id.includes("btn-start-section") || cl.includes("btn-start-section") ||
-        id.includes("start-section") || cl.includes("start-section")
+        id.includes("start-section") || cl.includes("start-section") ||
+        name.includes("startsection") || name.includes("btnstartsection") ||
+        src.includes("start_section") || src.includes("startsection")
       );
 
       if (isStartSection) {
@@ -2600,7 +2653,9 @@
         id === "startbtn" || cl.includes("startbtn") || id.includes("startbtn") ||
         id === "btn-start" || cl.includes("btn-start") || id.includes("btn-start") ||
         id === "start-btn" || cl.includes("start-btn") || id.includes("start-btn") ||
-        id === "start" || (id.includes("start") && !id.includes("restart"))
+        id === "start" || (id.includes("start") && !id.includes("restart")) ||
+        name.includes("btnstart") || name === "start" ||
+        src.includes("start")
       );
 
       if (isStartBtn && (isInModal || !hasVisibleQuestions)) {

@@ -202,10 +202,10 @@
         if (detail.text) {
           const textToFind = detail.text.trim().toLowerCase();
           try {
-            const allCandidates = doc.querySelectorAll("button, a, input, div, span, [role='button'], .btn");
+            const allCandidates = doc.querySelectorAll("button, a, input, div, span, [role='button'], .btn, img");
             for (const cand of allCandidates) {
-              const t = (cand.innerText || cand.value || "").trim().toLowerCase();
-              if (t === textToFind || (textToFind.length > 3 && t.includes(textToFind))) {
+              const t = (cand.innerText || cand.value || cand.getAttribute("alt") || cand.getAttribute("title") || cand.getAttribute("name") || "").trim().toLowerCase();
+              if (t === textToFind || (textToFind.length > 2 && t.includes(textToFind))) {
                 return cand;
               }
             }
@@ -298,16 +298,37 @@
         }
       }
 
-      // 5. Kiểm tra ASP.NET __doPostBack CHỈ KHI phần tử có chỉ định __doPostBack rõ ràng trong href hoặc onclick
-      // TUYỆT ĐỐI KHÔNG tự ý gọi __doPostBack trên các nút thuần client-side như "Start Section"
+      // 5. Kiểm tra ASP.NET __doPostBack CHỈ KHI phần tử có chỉ định __doPostBack rõ ràng trong href/onclick hoặc là nút Go
       const targetWinPostBack = targetWin.__doPostBack || window.__doPostBack;
       if (typeof targetWinPostBack === 'function') {
-        const nameOrId = target.getAttribute('name') || target.id || el.getAttribute('name') || el.id;
-        if (nameOrId && (href?.includes('__doPostBack') || onclickAttr?.includes('__doPostBack'))) {
+        const nameOrId = target.getAttribute('name') || target.id || el.getAttribute('name') || el.id || '';
+        const lowerNameOrId = nameOrId.toLowerCase();
+        if (nameOrId && (href?.includes('__doPostBack') || onclickAttr?.includes('__doPostBack') || lowerNameOrId.includes('btngo') || lowerNameOrId === 'go')) {
           try {
             console.log("[AI Shield] ⚡ Kích hoạt trực tiếp __doPostBack cho:", nameOrId);
             targetWinPostBack(nameOrId, '');
           } catch (e) { }
+        }
+      }
+
+      // 5b. Hỗ trợ kích hoạt AngularJS Scope & Directives (EdToeic LMS 1.x)
+      const angular = targetWin.angular || window.angular;
+      if (angular) {
+        try {
+          const ngTarget = target.closest('[ng-click]') || el.closest('[ng-click]');
+          if (ngTarget) {
+            const ngEl = angular.element(ngTarget);
+            const scope = ngEl.scope() || ngEl.isolateScope();
+            const expr = ngTarget.getAttribute('ng-click');
+            if (scope && expr) {
+              console.log("[AI Shield] 🅰️ Kích hoạt ng-click AngularJS:", expr);
+              scope.$applyAsync(() => {
+                scope.$eval(expr);
+              });
+            }
+          }
+        } catch (eNg) {
+          console.warn("[AI Shield] Lỗi gọi AngularJS:", eNg);
         }
       }
 
