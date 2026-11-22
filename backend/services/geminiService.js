@@ -78,17 +78,12 @@ if (!defaultApiKey) {
 const failedModelCooldown = new Map();
 const failedKeyCooldown = new Map();
 
-// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, ưu tiên các model có quota dồi dào và hỗ trợ audio siêu tốc
+// Danh sách candidate models tối ưu tốc độ và sự ổn định cao nhất, loại bỏ model 404 đã bị khai tử
 const CANDIDATE_MODELS = [
   "gemini-3-flash-preview",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
-  "gemini-flash-lite-latest",
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3.8-flash",
   process.env.GEMINI_MODEL
 ].filter((m, i, arr) => m && arr.indexOf(m) === i);
 
@@ -140,17 +135,10 @@ export async function solveQuestionsBatch({ questions, base64Image, questionImag
   }
 
   // 2. Prompt Master 990/990 TOEIC Examiner tối ưu hóa Token Economy & Sát thủ bẫy ETS
-  const prompt = `
+  const systemInstruction = `
 You are an ELITE TOEIC 990/990 MASTER EXAMINER and Native English Professor.
 Your ultimate mission: Achieve 100% PERFECT ACCURACY across all TOEIC Listening and Reading questions.
 Respond rapidly with MAXIMUM INTELLECT and ZERO ERRORS.
-
-=============================================================================
-CONTEXT FROM THE WEB PAGE:
-${pageText ? pageText.substring(0, 45000) : "N/A"}
-
-QUESTIONS TO SOLVE:
-${JSON.stringify(finalQuestions, null, 2)}
 
 =============================================================================
 MASTER RULES TO ANNIHILATE ALL TOEIC TRAPS & REACH 990/990:
@@ -215,6 +203,17 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
 }
 `;
 
+  const userPrompt = `
+=============================================================================
+CONTEXT FROM THE WEB PAGE:
+${pageText ? pageText.substring(0, 45000) : "N/A"}
+
+QUESTIONS TO SOLVE:
+${JSON.stringify(finalQuestions, null, 2)}
+=============================================================================
+Analyze carefully, listen to audio or examine images if provided, and output the JSON solutions object matching the required format.
+`;
+
   const contents = [];
 
   // 1. Đính kèm file âm thanh bài nghe (Audio Multimodal) nếu có
@@ -267,7 +266,7 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
     }
   }
 
-  contents.push(prompt);
+  contents.push(userPrompt);
 
   const keysToUse = getAllConfiguredKeys(requestApiKey);
   console.log(`[GeminiService] 🔑 Sẵn sàng ${keysToUse.length} API keys cho ${finalQuestions.length} câu hỏi.`);
@@ -296,6 +295,7 @@ STRICT JSON OUTPUT FORMAT (Put "solutions" FIRST for lightning speed):
         console.log(`[GeminiService] 🚀 Đang gọi model: ${modelName}...`);
         const model = client.getGenerativeModel({
           model: modelName,
+          systemInstruction: systemInstruction,
           generationConfig: {
             responseMimeType: "application/json",
             temperature: 0.0, // Đảm bảo độ chính xác tuyệt đối, không đoán mò ngẫu nhiên
@@ -401,8 +401,10 @@ function safeParseSolutions(rawText, expectedQuestions = []) {
 
   rawSolutions.forEach((sol, i) => {
     if (!sol) return;
-    const qId = sol.question_id || expectedQuestions[i]?.id || `q_${i + 1}`;
-    const targetQ = questionMap.get(qId) || expectedQuestions[i];
+    const targetQ = questionMap.get(sol.question_id) || expectedQuestions[i] || {};
+    const qId = targetQ.id || sol.question_id || `q_${i + 1}`;
+    const parsedNumFromId = parseInt(String(qId).replace(/\D/g, ""), 10) || (i + 1);
+    const finalQNum = targetQ.question_number || (parsedNumFromId > 0 ? parsedNumFromId : (i + 1));
 
     let selectedIdx = typeof sol.selected_index === "number" ? sol.selected_index : 0;
     let selectedVal = String(sol.selected_value || "").replace(/\b(true|false)\b/gi, "").trim();
@@ -453,12 +455,12 @@ function safeParseSolutions(rawText, expectedQuestions = []) {
 
     normalizedSolutions.push({
       question_id: qId,
-      question_number: targetQ?.question_number || (i + 1),
+      question_number: finalQNum,
       selected_index: selectedIdx,
       selected_value: selectedVal,
       key_evidence: sol.key_evidence || sol.evidence_quote || "",
       explanation: sol.explanation || `Đáp án chính xác được xác nhận bởi chuyên gia TOEIC.`,
-      confidence: sol.confidence || 0.99,
+      confidence: sol.confidence ? parseFloat(sol.confidence) : 0.99,
       conversation_transcript: convTranscript
     });
   });

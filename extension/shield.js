@@ -1,6 +1,6 @@
 // AI English Auto Solver - Main World Shield (Anti-Warning & Anti-Blur Guard)
 // Chạy trực tiếp trong ngữ cảnh trang web (Main World), không vi phạm Content Security Policy (CSP).
-(function() {
+(function () {
   if (window.__w_f_guard) return;
   window.__w_f_guard = 1;
 
@@ -9,11 +9,11 @@
     Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
     Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
     Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible', configurable: true });
-    document.hasFocus = function() { return true; };
-  } catch (e) {}
+    document.hasFocus = function () { return true; };
+  } catch (e) { }
 
   // B. Chặn các hàm cảnh báo blur / focusout / visibilitychange của website thi tiếng Anh
-  const blockBlur = function(e) {
+  const blockBlur = function (e) {
     if (e) {
       e.stopImmediatePropagation();
       e.stopPropagation();
@@ -31,7 +31,7 @@
       set: () => { console.log('[AI Shield] 🛡️ Đã chặn website gán window.onblur!'); },
       configurable: true
     });
-  } catch(e) {}
+  } catch (e) { }
 
   try {
     Object.defineProperty(window, 'onvisibilitychange', {
@@ -39,10 +39,10 @@
       set: () => { console.log('[AI Shield] 🛡️ Đã chặn website gán window.onvisibilitychange!'); },
       configurable: true
     });
-  } catch(e) {}
+  } catch (e) { }
 
   // D. Chặn cảnh báo rời chuột khỏi trang web (mouseleave / mouseout)
-  window.addEventListener('mouseleave', function(e) {
+  window.addEventListener('mouseleave', function (e) {
     if (e.target === document || e.target === document.documentElement) {
       e.stopImmediatePropagation();
       e.stopPropagation();
@@ -51,22 +51,22 @@
 
   // E. Bỏ qua các hộp thoại alert/confirm cảnh báo từ hệ thống tiếng Anh
   try {
-    window.alert = function(msg) {
+    window.alert = function (msg) {
       console.log("[AI Shield] 🔕 Đã bỏ qua cảnh báo alert:", msg);
     };
-    window.confirm = function(msg) {
+    window.confirm = function (msg) {
       console.log("[AI Shield] 🛡️ Đã tự động chấp thuận confirm:", msg);
       return true;
     };
-    window.prompt = function(msg) {
+    window.prompt = function (msg) {
       console.log("[AI Shield] 🔕 Bỏ qua prompt:", msg);
       return null;
     };
     window.onbeforeunload = null;
-  } catch(e) {}
+  } catch (e) { }
 
   // F. Lắng nghe CustomEvent từ Content Script để thực hiện Drop an toàn qua jQuery UI (CSP Compliant)
-  window.addEventListener('ai_trigger_drop', function(e) {
+  window.addEventListener('ai_trigger_drop', function (e) {
     try {
       const detail = e.detail;
       if (!detail) return;
@@ -121,7 +121,7 @@
   });
 
   // H. Lắng nghe CustomEvent chọn radio button an toàn, chuẩn xác trong MAIN WORLD
-  window.addEventListener('ai_check_radio', function(e) {
+  window.addEventListener('ai_check_radio', function (e) {
     try {
       const detail = e.detail || {};
       if (!detail.uid) return;
@@ -132,7 +132,7 @@
         if ($) {
           try {
             $(radio).prop('checked', true).trigger('change');
-          } catch(ex) {}
+          } catch (ex) { }
         }
       }
     } catch (err) {
@@ -140,9 +140,46 @@
     }
   });
 
+  // H2. Lắng nghe CustomEvent chọn option trong <select> dropdown (Dành riêng cho màn hình chọn Test Mode)
+  window.addEventListener('ai_select_dropdown', function(e) {
+    try {
+      const detail = e.detail || {};
+      const targetText = (detail.text || 'test mode').toLowerCase();
+      function selectInDoc(doc) {
+        if (!doc) return;
+        const selects = doc.querySelectorAll('select');
+        selects.forEach(sel => {
+          for (let i = 0; i < sel.options.length; i++) {
+            const opt = sel.options[i];
+            const t = (opt.text || opt.value || '').toLowerCase();
+            if (t.includes(targetText)) {
+              sel.selectedIndex = i;
+              sel.value = opt.value;
+              opt.selected = true;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              sel.dispatchEvent(new Event('input', { bubbles: true }));
+              const $ = window.jQuery || window.$;
+              if ($) {
+                try { $(sel).val(opt.value).trigger('change'); } catch(ex) {}
+              }
+              console.log('[AI Shield] 🎯 Đã chọn Test Mode thành công trong Main World:', opt.text, opt.value);
+              break;
+            }
+          }
+        });
+        doc.querySelectorAll('iframe, frame').forEach(f => {
+          try { selectInDoc(f.contentDocument); } catch(ex) {}
+        });
+      }
+      selectInDoc(document);
+    } catch(err) {
+      console.warn('[AI Shield Select Dropdown Error]', err);
+    }
+  });
+
   // I. Lắng nghe CustomEvent từ Content Script để thực hiện Click chân thực và đầy đủ quyền hạn trong MAIN WORLD
   // Hỗ trợ tuyệt đối cho ASP.NET WebForms (__doPostBack), inline onclick, href="javascript:...", jQuery trigger và các nút chuyển tiếp Section (Start Section)
-  window.addEventListener('ai_trigger_click', function(e) {
+  window.addEventListener('ai_trigger_click', function (e) {
     try {
       const detail = e.detail || {};
       let el = null;
@@ -154,13 +191,13 @@
           try {
             const found = doc.querySelector(`[data-ai-click="${detail.uid}"]`);
             if (found) return found;
-          } catch(ex) {}
+          } catch (ex) { }
         }
         if (detail.selector) {
           try {
             const found = doc.querySelector(detail.selector);
             if (found) return found;
-          } catch(ex) {}
+          } catch (ex) { }
         }
         if (detail.text) {
           const textToFind = detail.text.trim().toLowerCase();
@@ -172,7 +209,7 @@
                 return cand;
               }
             }
-          } catch(ex) {}
+          } catch (ex) { }
         }
         try {
           const iframes = doc.querySelectorAll("iframe, frame");
@@ -183,9 +220,9 @@
                 const innerFound = findInDocAndFrames(innerDoc);
                 if (innerFound) return innerFound;
               }
-            } catch(eIfr) {}
+            } catch (eIfr) { }
           }
-        } catch(ex) {}
+        } catch (ex) { }
         return null;
       }
 
@@ -220,34 +257,34 @@
       // 1. Dispatch chuỗi sự kiện chuột/pointer chân thực với tọa độ chính xác
       [target, el].forEach(elem => {
         if (!elem) return;
-        try { elem.dispatchEvent(new PointerEvent('pointerover', { ...evtInit, buttons: 0 })); } catch(e) {}
-        try { elem.dispatchEvent(new MouseEvent('mouseover', { ...evtInit, buttons: 0 })); } catch(e) {}
-        try { elem.dispatchEvent(new PointerEvent('pointerenter', { ...evtInit, buttons: 0 })); } catch(e) {}
-        try { elem.dispatchEvent(new PointerEvent('pointerdown', evtInit)); } catch(e) {}
-        try { elem.dispatchEvent(new MouseEvent('mousedown', evtInit)); } catch(e) {}
-        try { if (typeof elem.focus === 'function') elem.focus(); } catch(e) {}
-        try { elem.dispatchEvent(new PointerEvent('pointerup', { ...evtInit, buttons: 0 })); } catch(e) {}
-        try { elem.dispatchEvent(new MouseEvent('mouseup', { ...evtInit, buttons: 0 })); } catch(e) {}
-        try { elem.dispatchEvent(new MouseEvent('click', { ...evtInit, buttons: 0 })); } catch(e) {}
+        try { elem.dispatchEvent(new PointerEvent('pointerover', { ...evtInit, buttons: 0 })); } catch (e) { }
+        try { elem.dispatchEvent(new MouseEvent('mouseover', { ...evtInit, buttons: 0 })); } catch (e) { }
+        try { elem.dispatchEvent(new PointerEvent('pointerenter', { ...evtInit, buttons: 0 })); } catch (e) { }
+        try { elem.dispatchEvent(new PointerEvent('pointerdown', evtInit)); } catch (e) { }
+        try { elem.dispatchEvent(new MouseEvent('mousedown', evtInit)); } catch (e) { }
+        try { if (typeof elem.focus === 'function') elem.focus(); } catch (e) { }
+        try { elem.dispatchEvent(new PointerEvent('pointerup', { ...evtInit, buttons: 0 })); } catch (e) { }
+        try { elem.dispatchEvent(new MouseEvent('mouseup', { ...evtInit, buttons: 0 })); } catch (e) { }
+        try { elem.dispatchEvent(new MouseEvent('click', { ...evtInit, buttons: 0 })); } catch (e) { }
       });
 
       // 2. Kích hoạt trực tiếp native click()
       try {
         if (typeof target.click === 'function') target.click();
         else if (typeof el.click === 'function') el.click();
-      } catch(e) {}
+      } catch (e) { }
 
       // 3. Nếu là ASP.NET WebForms hoặc có inline onclick
       const onclickAttr = target.getAttribute('onclick') || el.getAttribute('onclick');
       if (onclickAttr) {
         try {
           new Function('event', onclickAttr).call(target, new MouseEvent('click', evtInit));
-        } catch(e) {
-          try { (0, eval)(onclickAttr); } catch(ex) {}
+        } catch (e) {
+          try { (0, eval)(onclickAttr); } catch (ex) { }
         }
       }
       if (typeof target.onclick === 'function') {
-        try { target.onclick.call(target, new MouseEvent('click', evtInit)); } catch(e) {}
+        try { target.onclick.call(target, new MouseEvent('click', evtInit)); } catch (e) { }
       }
 
       // 4. Kiểm tra href="javascript:..."
@@ -256,8 +293,8 @@
         const jsCode = decodeURIComponent(href.replace(/^javascript:/i, ''));
         try {
           new Function(jsCode)();
-        } catch(e) {
-          try { (0, eval)(jsCode); } catch(ex) {}
+        } catch (e) {
+          try { (0, eval)(jsCode); } catch (ex) { }
         }
       }
 
@@ -270,7 +307,7 @@
           try {
             console.log("[AI Shield] ⚡ Kích hoạt trực tiếp __doPostBack cho:", nameOrId);
             targetWinPostBack(nameOrId, '');
-          } catch(e) {}
+          } catch (e) { }
         }
       }
 
@@ -280,7 +317,7 @@
         try {
           $(target).trigger('click');
           if (target !== el) $(el).trigger('click');
-        } catch(e) {}
+        } catch (e) { }
       }
 
       // 7. Đặc thù Start Section / Bắt đầu phần thi trên ETS OLPC và các hệ thống thi trắc nghiệm
@@ -298,7 +335,7 @@
             if (typeof w.btnStartSection_Click === 'function') w.btnStartSection_Click();
             if (typeof w.btnStart_Click === 'function') w.btnStart_Click();
             if (typeof w.onStartSection === 'function') w.onStartSection();
-          } catch (exFunc) {}
+          } catch (exFunc) { }
         });
       }
 
@@ -309,7 +346,7 @@
       if (detail && detail.uid) {
         try {
           document.querySelectorAll(`[data-ai-click="${detail.uid}"]`).forEach(m => m.removeAttribute('data-ai-click'));
-        } catch(e) {}
+        } catch (e) { }
       }
     }
   });
@@ -326,47 +363,73 @@
     }
   }
 
+  // G. Bắt tức thì URL âm thanh bài nghe (Audio Capture) & Quản lý tất cả đối tượng Audio ở Main World
+  const __activeMediaElements = new Set();
+
+  function trackMediaInstance(inst) {
+    if (!inst) return;
+    __activeMediaElements.add(inst);
+    // Tự động dọn dẹp khi audio bị hủy
+    try {
+      inst.addEventListener('ended', () => { __activeMediaElements.delete(inst); }, { once: true });
+    } catch (e) { }
+  }
+
+  function notifyCapturedAudio(url) {
+    if (!url || typeof url !== "string") return;
+    if (url.startsWith("data:") || url.startsWith("blob:")) return;
+    if (/\.(png|jpg|jpeg|gif|svg|webp|ico|js|css|html|aspx)($|\?)/i.test(url)) return;
+    if (/\.(mp3|wav|ogg|m4a|aac|opus|weba)($|\?)/i.test(url) || url.includes("/audio/") || url.includes("sound")) {
+      window.__capturedAudioUrl = url;
+      window.dispatchEvent(new CustomEvent("ai_audio_captured", { detail: { url } }));
+      console.log("[AI Shield] 🎵 Bắt được trực tiếp URL âm thanh bài nghe:", url);
+    }
+  }
+
   try {
     const origAudio = window.Audio;
     if (origAudio) {
-      window.Audio = function(src) {
+      window.Audio = function (src) {
         const inst = new origAudio(src);
+        trackMediaInstance(inst);
         if (src) notifyCapturedAudio(src);
         const origPlay = inst.play;
-        inst.play = function() {
-          notifyCapturedAudio(inst.src || inst.currentSrc);
+        inst.play = function () {
+          trackMediaInstance(this);
+          notifyCapturedAudio(this.src || this.currentSrc);
           return origPlay.apply(this, arguments);
         };
         return inst;
       };
       window.Audio.prototype = origAudio.prototype;
     }
-  } catch (eAudio) {}
+  } catch (eAudio) { }
 
   try {
     const playDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'play');
     if (playDesc && playDesc.value) {
       const origPlay = playDesc.value;
-      playDesc.value = function() {
+      playDesc.value = function () {
+        trackMediaInstance(this);
         notifyCapturedAudio(this.src || this.currentSrc);
         return origPlay.apply(this, arguments);
       };
       Object.defineProperty(HTMLMediaElement.prototype, 'play', playDesc);
     }
-  } catch (eMedia) {}
+  } catch (eMedia) { }
 
   try {
     const origXhrOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url) {
+    XMLHttpRequest.prototype.open = function (method, url) {
       notifyCapturedAudio(url);
       return origXhrOpen.apply(this, arguments);
     };
-  } catch (eXhr) {}
+  } catch (eXhr) { }
 
   try {
     const origFetch = window.fetch;
     if (typeof origFetch === "function") {
-      window.fetch = function(resource, init) {
+      window.fetch = function (resource, init) {
         if (typeof resource === "string") {
           notifyCapturedAudio(resource);
         } else if (resource && resource.url) {
@@ -375,7 +438,102 @@
         return origFetch.apply(this, arguments);
       };
     }
-  } catch (eFetch) {}
+  } catch (eFetch) { }
 
-  console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh & bộ bắt audio đã sẵn sàng!");
+  // J. TURBO SPEED: Lắng nghe CustomEvent tua nhanh âm thanh & kích hoạt chuyển câu lập tức (Main World)
+  // Giúp hoàn thành mỗi bài test 100 câu chỉ trong 4 - 5 phút (toàn bộ 5 bài trong 25 - 30 phút)!
+  window.addEventListener('ai_fast_forward_audio', function () {
+    try {
+      console.log('[AI Shield] ⚡ Nhận tín hiệu TURBO: Đang tua nhanh toàn bộ âm thanh và kích hoạt Next...');
+
+      // 1. Xử lý toàn bộ audio đối tượng trong bộ nhớ (được tạo qua new Audio())
+      __activeMediaElements.forEach(inst => {
+        try {
+          inst.playbackRate = 16.0;
+          if (inst.duration && !isNaN(inst.duration) && isFinite(inst.duration) && inst.duration > 0.1) {
+            inst.currentTime = inst.duration - 0.05;
+          } else {
+            inst.currentTime = 9999;
+          }
+          inst.dispatchEvent(new Event('timeupdate', { bubbles: true }));
+          inst.dispatchEvent(new Event('ended', { bubbles: true }));
+          if (typeof inst.onended === 'function') {
+            inst.onended(new Event('ended'));
+          }
+        } catch (e) { }
+      });
+
+      // 2. Quét đệ quy toàn bộ thẻ audio/video trong Document và tất cả iframe
+      function fastForwardDomMedia(doc) {
+        if (!doc) return;
+        try {
+          const mediaEls = doc.querySelectorAll('audio, video');
+          mediaEls.forEach(m => {
+            try {
+              m.playbackRate = 16.0;
+              if (m.duration && !isNaN(m.duration) && isFinite(m.duration) && m.duration > 0.1) {
+                m.currentTime = m.duration - 0.05;
+              } else {
+                m.currentTime = 9999;
+              }
+              m.dispatchEvent(new Event('timeupdate', { bubbles: true }));
+              m.dispatchEvent(new Event('ended', { bubbles: true }));
+              if (typeof m.onended === 'function') {
+                m.onended(new Event('ended'));
+              }
+            } catch (e) { }
+          });
+          doc.querySelectorAll('iframe, frame').forEach(f => {
+            try { fastForwardDomMedia(f.contentDocument); } catch (ex) { }
+          });
+        } catch (e) { }
+      }
+      fastForwardDomMedia(document);
+
+      // 3. Mở khóa nút Next nếu bị disabled trong ETS
+      function unlockAndClickNext(doc) {
+        if (!doc) return;
+        try {
+          const nextCandidates = doc.querySelectorAll('#btnNext, .btnNext, input[name*="btnNext" i], input[value*="Next" i], button[id*="next" i], button[class*="next" i]');
+          nextCandidates.forEach(btn => {
+            try {
+              btn.removeAttribute('disabled');
+              btn.disabled = false;
+              btn.classList.remove('disabled');
+              if (btn.style.display === 'none') btn.style.display = 'inline-block';
+              if (btn.style.visibility === 'hidden') btn.style.visibility = 'visible';
+            } catch (e) { }
+          });
+          doc.querySelectorAll('iframe, frame').forEach(f => {
+            try { unlockAndClickNext(f.contentDocument); } catch (ex) { }
+          });
+        } catch (e) { }
+      }
+      unlockAndClickNext(document);
+
+      // 4. Kích hoạt trực tiếp các hàm chuyển câu nội bộ của hệ thống ETS nếu có
+      const winList = [window];
+      try {
+        document.querySelectorAll('iframe, frame').forEach(f => {
+          try { if (f.contentWindow) winList.push(f.contentWindow); } catch (e) { }
+        });
+      } catch (e) { }
+
+      winList.forEach(w => {
+        try {
+          ['onAudioEnded', 'audioEnded', 'onSoundComplete', 'soundComplete', 'nextQuestion', 'gotoNextQuestion', 'moveNext', 'goNext', 'GoNext', 'fnNext', 'fn_Next'].forEach(fn => {
+            if (typeof w[fn] === 'function') {
+              console.log(`[AI Shield] ⚡ Đã kích hoạt hàm chuyển câu ETS: ${fn}()`);
+              w[fn]();
+            }
+          });
+        } catch (e) { }
+      });
+
+    } catch (err) {
+      console.warn('[AI Shield Audio Fast Forward Error]', err);
+    }
+  });
+
+  console.log("[AI Shield] 🛡️ Lá chắn chống cảnh báo hệ thống tiếng Anh & Turbo Audio Skipper đã sẵn sàng!");
 })();

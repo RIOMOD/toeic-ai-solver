@@ -8,66 +8,76 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
     }
     body {
-      width: 350px;
-      background: #0f172a;
+      width: 360px;
+      background: #090d16;
       color: #f8fafc;
-      padding: 16px;
+      padding: 18px;
       user-select: none;
     }
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #1e293b;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
     .logo {
       display: flex;
       align-items: center;
       gap: 8px;
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 800;
+      letter-spacing: -0.3px;
       color: #38bdf8;
+    }
+    .logo-badge {
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 2px 6px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #0b1329;
+      border-radius: 12px;
+      letter-spacing: 0.5px;
     }
     .badge-status {
       font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-weight: 600;
-      background: rgba(34, 197, 94, 0.2);
-      color: #22c55e;
-      border: 1px solid #22c55e;
+      padding: 3px 9px;
+      border-radius: 16px;
+      font-weight: 700;
+      background: rgba(34, 197, 94, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(34, 197, 94, 0.4);
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 5px;
       cursor: pointer;
       transition: all 0.2s;
     }
     .badge-status:hover {
-      opacity: 0.85;
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.35);
     }
     .badge-status.disconnected {
-      background: rgba(239, 68, 68, 0.2);
-      color: #ef4444;
-      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.4);
     }
     .section-title {
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       color: #94a3b8;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin: 14px 0 6px 0;
+      letter-spacing: 0.6px;
+      margin: 15px 0 7px 0;
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .form-group {
-      margin-bottom: 10px;
+      margin-bottom: 11px;
     }
     .url-input-wrap {
       display: flex;
@@ -75,44 +85,48 @@
     }
     input[type="text"] {
       flex: 1;
-      padding: 8px 10px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 6px;
+      padding: 8px 11px;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
       color: #f8fafc;
       font-size: 12px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: all 0.2s;
     }
     input[type="text"]:focus {
       border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+      background: rgba(30, 41, 59, 0.9);
     }
     .btn-sm {
-      padding: 7px 11px;
-      background: #1e293b;
-      border: 1px solid #38bdf8;
+      padding: 7px 13px;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.4);
       color: #38bdf8;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
+      border-radius: 8px;
+      font-size: 11.5px;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
       white-space: nowrap;
     }
     .btn-sm:hover {
-      background: #0284c7;
-      color: #fff;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #0b1329;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
     }
     .setting-card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 10px;
-      margin-bottom: 8px;
-      transition: border-color 0.2s;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.65) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 11px 13px;
+      margin-bottom: 9px;
+      transition: all 0.2s;
     }
     .setting-card:hover {
-      border-color: #475569;
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     }
     .setting-row {
       display: flex;
@@ -121,8 +135,8 @@
       cursor: pointer;
     }
     .setting-label {
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 12.5px;
+      font-weight: 700;
       color: #f8fafc;
       display: flex;
       align-items: center;
@@ -131,73 +145,82 @@
     .setting-desc {
       font-size: 10.5px;
       color: #94a3b8;
-      margin-top: 4px;
-      line-height: 1.35;
+      margin-top: 5px;
+      line-height: 1.4;
     }
     .bubble-mode-options {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-top: 8px;
+      gap: 7px;
+      margin-top: 9px;
     }
     .bubble-opt-btn {
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 6px;
-      padding: 7px 8px;
+      background: rgba(11, 15, 25, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 8px 10px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 5px;
-      font-size: 11px;
+      gap: 6px;
+      font-size: 11.5px;
       color: #94a3b8;
-      font-weight: 500;
+      font-weight: 600;
       transition: all 0.2s;
     }
     .bubble-opt-btn:hover {
       border-color: #38bdf8;
       color: #f8fafc;
+      background: rgba(56, 189, 248, 0.08);
     }
     .bubble-opt-btn.active {
       border-color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
+      background: rgba(56, 189, 248, 0.18);
       color: #38bdf8;
-      font-weight: 700;
+      font-weight: 800;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
     }
     .info-notice {
-      margin-top: 12px;
-      padding: 10px 12px;
-      background: rgba(56, 189, 248, 0.08);
+      margin-top: 14px;
+      padding: 11px 13px;
+      background: rgba(14, 165, 233, 0.1);
       border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 8px;
-      font-size: 11px;
-      line-height: 1.45;
+      border-radius: 10px;
+      font-size: 11.5px;
+      line-height: 1.5;
       color: #e2e8f0;
       display: flex;
-      gap: 8px;
+      gap: 9px;
     }
     .info-notice strong {
       color: #38bdf8;
     }
     .hotkey-box {
-      margin-top: 10px;
-      padding: 10px 12px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
+      margin-top: 11px;
+      padding: 11px 13px;
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
     }
     .hotkey-grid {
       display: grid;
       grid-template-columns: 1fr auto;
-      row-gap: 5px;
+      row-gap: 6px;
       font-size: 11px;
       color: #cbd5e1;
-      margin-top: 6px;
+      margin-top: 7px;
     }
     kbd {
-      background: #0f172a;
-      padding: 1px 5px;
+      background: rgba(11, 15, 25, 0.8);
+      padding: 2px 6px;
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #38bdf8;
+      font-weight: bold;
+      font-size: 10.5px;
+    }
+  </style>
       border-radius: 4px;
       border: 1px solid #475569;
       color: #38bdf8;
@@ -211,7 +234,7 @@
   <!-- Header -->
   <div class="header">
     <div class="logo">
-      <span>⚙️</span> Cài Đặt AI Solver
+      <span>⚡</span> AI Solver <span class="logo-badge">TURBO</span>
     </div>
     <div id="backendBadge" class="badge-status" title="Nhấp để kiểm tra lại kết nối">
       Đang kiểm tra...

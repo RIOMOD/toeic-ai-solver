@@ -471,42 +471,35 @@
     toolbar.style.setProperty("flex-direction", "row", "important");
     toolbar.style.setProperty("flex-wrap", "nowrap", "important");
     toolbar.style.setProperty("align-items", "center", "important");
-    toolbar.style.setProperty("height", "44px", "important");
-    toolbar.style.setProperty("min-height", "44px", "important");
-    toolbar.style.setProperty("max-height", "44px", "important");
+    toolbar.style.setProperty("height", "38px", "important");
+    toolbar.style.setProperty("min-height", "38px", "important");
+    toolbar.style.setProperty("max-height", "38px", "important");
     toolbar.style.setProperty("width", "auto", "important");
     toolbar.style.setProperty("max-width", "fit-content", "important");
-    toolbar.style.setProperty("padding", "4px 10px", "important");
+    toolbar.style.setProperty("padding", "3px 8px", "important");
     toolbar.style.setProperty("margin", "0px", "important");
     toolbar.style.setProperty("box-sizing", "border-box", "important");
-    toolbar.style.setProperty("border-radius", "50px", "important");
+    toolbar.style.setProperty("border-radius", "40px", "important");
+    toolbar.style.setProperty("gap", "5px", "important");
     toolbar.innerHTML = `
-      <div class="ai-toolbar-drag-handle notranslate" id="ai-drag-handle" title="Nhấp giữ chuột để kéo di chuyển thanh AI">
+      <div class="ai-toolbar-drag-handle notranslate" id="ai-drag-handle" title="Kéo để di chuyển">
         <span class="notranslate">⋮⋮</span>
       </div>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-solve" title="Quét & Giải câu này (Phím tắt: Alt + S)">
-        <span class="notranslate">⚡</span> <span class="notranslate" id="ai-solve-text">Quét & Giải</span>
+      <div class="ai-toolbar-brand notranslate" title="Hệ thống AI Turbo 8X Engine">
+        <span class="ai-brand-dot"></span>
+        <span class="ai-brand-text">TURBO</span>
+      </div>
+      <button class="ai-toolbar-btn main-btn notranslate" id="ai-btn-masterauto" title="Tự động chạy chuỗi bài thi từ A-Z (Phím tắt: Alt + M)">
+        <span class="notranslate">🚀</span> <span class="notranslate" id="ai-masterauto-text">Bắt Đầu</span>
       </button>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-autonext" title="Tự động Next câu liên tục (Phím tắt: Alt + A)">
-        <span class="notranslate">🔄</span> <span class="notranslate" id="ai-autonext-text">Tự Động Next</span>
-      </button>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-masterauto" title="Tự động chọn bài, giải bài tập và làm sạch cả khóa học (Phím tắt: Alt + M)">
-        <span class="notranslate">🚀</span> <span class="notranslate" id="ai-masterauto-text">Siêu Auto</span>
-      </button>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-review" title="Dò lại bài thi xem đã hoàn thành hết các câu chưa">
-        <span class="notranslate">🔍</span> <span class="notranslate" id="ai-review-text">Dò Lại Bài</span>
-      </button>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-history" title="Xem & Tải lịch sử đáp án bài thi này (Phím tắt: Alt + L)">
-        <span class="notranslate">📜</span> <span class="notranslate" id="ai-history-text">Lịch Sử</span>
-      </button>
-      <button class="ai-toolbar-btn notranslate" id="ai-btn-next" title="Chuyển ngay sang câu tiếp theo (Phím tắt: Alt + N)">
-        <span class="notranslate">⏭️</span>
+      <button class="ai-toolbar-btn sub-btn notranslate" id="ai-btn-solve" title="Giải câu hiện tại (Phím tắt: Alt + S)">
+        <span class="notranslate">⚡</span> <span class="notranslate" id="ai-solve-text">Giải Câu</span>
       </button>
       <div class="ai-toolbar-divider notranslate"></div>
-      <button class="ai-toolbar-icon-btn minimize notranslate" id="ai-btn-minimize" title="Thu nhỏ toolbar thành bong bóng nổi">
+      <button class="ai-toolbar-icon-btn minimize notranslate" id="ai-btn-minimize" title="Thu nhỏ toolbar">
         <span class="notranslate">➖</span>
       </button>
-      <button class="ai-toolbar-icon-btn close notranslate" id="ai-btn-close" title="Ẩn tạm thời (Phím tắt: Alt + Z hoặc Alt + H)">
+      <button class="ai-toolbar-icon-btn close notranslate" id="ai-btn-close" title="Ẩn (Phím tắt: Alt + Z hoặc Alt + H)">
         <span class="notranslate">✖</span>
       </button>
     `;
@@ -528,38 +521,45 @@
     `;
 
     // Gắn sự kiện các nút trên Toolbar
-    toolbar.querySelector("#ai-btn-solve").addEventListener("click", () => {
-      triggerScanAndSolve();
-    });
-
-    toolbar.querySelector("#ai-btn-autonext").addEventListener("click", () => {
-      toggleAutoNextLoop();
-    });
-
-    toolbar.querySelector("#ai-btn-masterauto").addEventListener("click", () => {
+    toolbar.querySelector("#ai-btn-masterauto")?.addEventListener("click", () => {
       toggleMasterAuto();
     });
 
-    toolbar.querySelector("#ai-btn-review").addEventListener("click", () => {
+    toolbar.querySelector("#ai-btn-solve")?.addEventListener("click", () => {
+      // Nếu đang ở màn hình trang chủ edtoeic.engdis.com/#/home, tự động bắt đầu chuỗi bài thi Assessment Center
+      if (window.location.hash.includes("home") || window.location.href.includes("#/home")) {
+        console.log("[Content] 🏠 Đang ở trang chủ, kích hoạt chuỗi 5 bài thi Assessment Center...");
+        showAiToast("🚀 Bắt đầu chuỗi 5 bài thi Assessment Center...", 2500);
+        startMasterAuto();
+        return;
+      }
+      triggerScanAndSolve();
+    });
+
+    toolbar.querySelector("#ai-btn-autonext")?.addEventListener("click", () => {
+      toggleAutoNextLoop();
+    });
+
+    toolbar.querySelector("#ai-btn-review")?.addEventListener("click", () => {
       runReviewAndCheckCompletion(true, true);
     });
 
-    toolbar.querySelector("#ai-btn-history").addEventListener("click", () => {
+    toolbar.querySelector("#ai-btn-history")?.addEventListener("click", () => {
       showHistoryModal();
     });
 
-    toolbar.querySelector("#ai-btn-next").addEventListener("click", () => {
+    toolbar.querySelector("#ai-btn-next")?.addEventListener("click", () => {
       findAndClickNextButton();
     });
 
     // Nút thu nhỏ về bong bóng
-    toolbar.querySelector("#ai-btn-minimize").addEventListener("click", (e) => {
+    toolbar.querySelector("#ai-btn-minimize")?.addEventListener("click", (e) => {
       e.stopPropagation();
       setToolbarMinimized(true, true);
     });
 
     // Nút đóng/ẩn hoàn toàn
-    toolbar.querySelector("#ai-btn-close").addEventListener("click", (e) => {
+    toolbar.querySelector("#ai-btn-close")?.addEventListener("click", (e) => {
       e.stopPropagation();
       toggleToolbarVisibility(false);
     });
@@ -907,9 +907,15 @@
       }
       window._solvingStartTime = null;
 
-      // 0b. Kiểm tra nếu bài thi đã hoàn thành đến câu cuối cùng (màn hình tổng kết điểm) - dùng textContent tránh giật lag
+      // 0b. Kiểm tra nếu bài thi đã thực sự kết thúc đến câu cuối cùng (màn hình tổng kết điểm và không còn câu hỏi active)
       const allDocsText = getAllExerciseDocuments().map(d => d.body?.textContent || "").join(" ");
-      if (allDocsText.includes("Your test score is:") || /Test\s*Score\s*:\s*\d+/i.test(allDocsText) || allDocsText.includes("You have reached the end of the test")) {
+      const hasActiveInputs = queryAllInDocs("input[type='radio']:not([disabled]), input[type='checkbox']:not([disabled])").some(isElementVisible);
+      const isEndScoreScreen = !hasActiveInputs && (
+        allDocsText.includes("Your test score is:") ||
+        /Test\s*Score\s*:\s*\d+/i.test(allDocsText) ||
+        allDocsText.includes("You have reached the end of the test")
+      );
+      if (isEndScoreScreen) {
         finalizeAndDownloadActiveExamSession("watcher_detected_score_summary");
         return;
       }
@@ -1017,14 +1023,22 @@
         continue;
       }
 
-      // 0a. Kiểm tra nếu có màn hình chuyển tiếp Section (Start Section)
+      // 0a. Kiểm tra nếu có màn hình chuyển tiếp Section (Start Section) hoặc Test Mode / SysCheck
       if (await findAndClickSectionTransitionButton()) {
-        console.log("[AutoNext] 🚀 Đã tự động nhấn nút chuyển tiếp Section mới!");
-        await sleep(1000);
+        console.log("[AutoNext] 🚀 Đã tự động nhấn nút chuyển tiếp Section/Mode mới!");
+        await sleep(1500);
         continue;
       }
 
-      // 0b. Kiểm tra nếu bài thi đã hoàn thành đến câu cuối cùng hoặc màn hình kết thúc
+      // 0b. Kiểm tra xem có câu hỏi bài tập trên màn hình không
+      const activeQuestions = await scanDOMQuestions();
+      if (activeQuestions.length === 0) {
+        // Chưa có câu hỏi (đang ở màn hình chờ, chuyển tiếp hoặc chọn mode) -> Tuyệt đối không gọi triggerScanAndSolve
+        await sleep(800);
+        continue;
+      }
+
+      // 0c. Kiểm tra nếu bài thi đã hoàn thành đến câu cuối cùng hoặc màn hình kết thúc
       const allDocsText = getCachedPageText();
       const isListening = isCurrentInListeningSection();
       const isEndReached = !isListening && (
@@ -1117,30 +1131,41 @@
         const hasQuestions = queryAllInDocs("input[type='radio'], input[type='checkbox']").length > 0;
 
         if (isListening || hasQuestions) {
-          console.log("[AutoNext] ⏳ Đang ở bài thi Listening tự chuyển câu. Đang đợi hệ thống tự chuyển sang câu tiếp theo...");
+          console.log("[AutoNext] ⏳ Đang ở bài thi Listening. Kích hoạt TURBO Fast-Forward Audio để chuyển câu tức thì...");
+          triggerFastForwardAudio();
           const solveText = document.getElementById("ai-solve-text");
           if (solveText && solveText.innerText !== "Đang Giải...") solveText.innerText = "Chờ câu mới...";
           const nextText = document.getElementById("ai-autonext-text");
-          if (nextText) nextText.innerText = "Chờ chuyển câu...";
+          if (nextText) nextText.innerText = "Chuyển câu ⚡...";
 
           let transitioned = false;
           const startWait = Date.now();
-          while (isAutoNextRunning && Date.now() - startWait < 180000) {
-            await sleep(1000);
+          while (isAutoNextRunning && Date.now() - startWait < 12000) {
+            await sleep(250);
 
             // 1. Kiểm tra nếu có nút chuyển tiếp Section
             if (findAndClickSectionTransitionButton()) {
               transitioned = true;
-              await sleep(2500);
+              await sleep(1500);
               break;
+            }
+
+            // 1b. Định kỳ kích hoạt tua audio và bấm Next nếu nút Next xuất hiện
+            if ((Date.now() - startWait) % 500 < 260) {
+              triggerFastForwardAudio();
+              if (findAndClickNextButton()) {
+                transitioned = true;
+                await sleep(400);
+                break;
+              }
             }
 
             // 2. Kiểm tra nếu hệ thống đã tự chuyển sang câu mới
             const newFp = getQuestionFingerprint();
             if (newFp && newFp !== prevFp) {
               transitioned = true;
-              console.log("[AutoNext] 🔔 Hệ thống ETS đã tự chuyển sang câu mới:", getCurrentQuestionTitle());
-              await sleep(500);
+              console.log("[AutoNext] ⚡ Hệ thống ETS đã tự chuyển sang câu mới:", getCurrentQuestionTitle());
+              await sleep(400);
               break;
             }
 
@@ -1157,7 +1182,7 @@
           }
 
           if (isListening) {
-            console.log("[AutoNext] 🎧 Vẫn đang trong phần thi Listening (âm thanh có thể đang chạy). Tiếp tục vòng lặp chờ...");
+            console.log("[AutoNext] 🎧 Vẫn đang trong phần thi Listening. Tiếp tục vòng lặp...");
             continue;
           }
         }
@@ -1208,16 +1233,16 @@
     if (btn && text) {
       if (active) {
         btn.classList.add("active");
-        text.innerText = "⏹️ Dừng Siêu Auto";
+        text.innerText = "⏹ Dừng";
       } else {
         btn.classList.remove("active");
-        text.innerText = "Siêu Auto";
+        text.innerText = "Bắt Đầu";
       }
     }
     if (cachedBubbleEl) {
       if (active) {
         cachedBubbleEl.classList.add("auto-running");
-        cachedBubbleEl.title = "Đang chạy Siêu Auto Cả Khóa (Bấm để mở bảng điều khiển • Alt + M để dừng)";
+        cachedBubbleEl.title = "Đang chạy Auto (Bấm để mở bảng điều khiển • Alt + M để dừng)";
       } else {
         cachedBubbleEl.classList.remove("auto-running");
         cachedBubbleEl.title = "Bấm để mở bảng điều khiển AI Solver (Phím tắt: Alt + Z hoặc Alt + H)";
@@ -1269,14 +1294,23 @@
                 confidence: 1.0
               }]);
               recordProgress("test_finished_advancing_next");
-              await sleep(3500);
+              await sleep(2000);
               closeCompletedTestWindow(true);
 
               // Nếu là cửa sổ / tab popup riêng (Test.aspx hoặc toeicolpc), đóng tab để quay lại trang chủ khóa học LMS
               if (window.opener || window.location.href.toLowerCase().includes("test.aspx") || window.location.href.toLowerCase().includes("toeicolpc.com")) {
                 try { window.close(); } catch(e) {}
               }
-              await sleep(3000);
+              // Bảo hiểm nếu tab không đóng được, tự điều hướng về trang chủ để làm bài tiếp theo
+              setTimeout(() => {
+                try {
+                  if (window.location.href.toLowerCase().includes("test.aspx") || window.location.href.toLowerCase().includes("toeicolpc.com")) {
+                    window.location.href = "https://edtoeic.engdis.com/EdToeic1#/home";
+                  }
+                } catch(e) {}
+              }, 1500);
+
+              await sleep(2000);
               continue; // Tiếp tục vòng lặp 24/24
             } else {
               console.log("[MasterAuto] 🏆 Đã hoàn thành bài kiểm tra! Dừng tự động và giữ nguyên trình duyệt.");
@@ -1363,32 +1397,30 @@
               const hasQuestions = queryAllInDocs("input[type='radio'], input[type='checkbox']").length > 0;
 
               if (isListening || hasQuestions) {
-                console.log("[MasterAuto] ⏳ Đang ở bài thi Listening tự chuyển câu. Đang đợi hệ thống tự chuyển sang câu tiếp theo...");
+                console.log("[MasterAuto] ⏳ Đang ở bài thi Listening. Kích hoạt TURBO Fast-Forward Audio để chuyển câu tức thì...");
+                triggerFastForwardAudio();
                 const solveText = document.getElementById("ai-solve-text");
                 if (solveText) solveText.innerText = "Chờ câu mới...";
 
                 let transitioned = false;
                 const startWait = Date.now();
-                while (isMasterAutoRunning && Date.now() - startWait < 90000) {
-                  await sleep(1000);
+                while (isMasterAutoRunning && Date.now() - startWait < 12000) {
+                  await sleep(250);
 
                   // 1. Kiểm tra nếu có nút chuyển tiếp Section
                   if (findAndClickSectionTransitionButton()) {
                     transitioned = true;
-                    await sleep(2500);
+                    await sleep(1500);
                     break;
                   }
 
-                  // 1b. Hỗ trợ kích hoạt audio phát hoặc kết thúc chuyển câu nếu trang bị kẹt
-                  if (Date.now() - startWait > 4000) {
-                    const audioEls = queryAllInDocs("audio, video");
-                    for (const a of audioEls) {
-                      try {
-                        if (a.paused && a.currentTime === 0) a.play().catch(() => {});
-                        if (Date.now() - startWait > 8000 && a.duration && a.currentTime >= a.duration - 1) {
-                          a.dispatchEvent(new Event("ended", { bubbles: true }));
-                        }
-                      } catch (e) {}
+                  // 1b. Định kỳ kích hoạt tua audio và bấm Next nếu nút Next xuất hiện
+                  if ((Date.now() - startWait) % 500 < 260) {
+                    triggerFastForwardAudio();
+                    if (findAndClickNextButton()) {
+                      transitioned = true;
+                      await sleep(400);
+                      break;
                     }
                   }
 
@@ -1396,8 +1428,8 @@
                   const newFp = getQuestionFingerprint();
                   if (newFp && newFp !== prevFp) {
                     transitioned = true;
-                    console.log("[MasterAuto] 🔔 Hệ thống ETS đã tự chuyển sang câu mới:", getCurrentQuestionTitle());
-                    await sleep(500);
+                    console.log("[MasterAuto] ⚡ Hệ thống ETS đã tự chuyển sang câu mới:", getCurrentQuestionTitle());
+                    await sleep(400);
                     break;
                   }
 
@@ -1443,7 +1475,16 @@
           let startTestBtn = findAssessmentCenterStartTestButton();
           if (startTestBtn) {
             console.log("[MasterAuto] 🎯 Bấm nút Start Test trong Assessment Center:", startTestBtn);
+            showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
             triggerSmartClick(startTestBtn);
+            try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
+            try {
+              const uid = "ac_test_" + Date.now();
+              startTestBtn.setAttribute("data-ai-click", uid);
+              window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+                detail: { uid, text: startTestBtn.innerText || "start test" }
+              }));
+            } catch(e) {}
             await sleep(4000);
             continue;
           }
@@ -1451,11 +1492,25 @@
           // B. Nếu Assessment Center chưa mở, thử mở Assessment Center trên menu bên trái
           const acOpened = openAssessmentCenter();
           if (acOpened) {
-            await sleep(2500);
-            startTestBtn = findAssessmentCenterStartTestButton();
+            let startTestBtn = null;
+            const startWaitModal = Date.now();
+            while (Date.now() - startWaitModal < 4500) {
+              await sleep(350);
+              startTestBtn = findAssessmentCenterStartTestButton();
+              if (startTestBtn) break;
+            }
             if (startTestBtn) {
               console.log("[MasterAuto] 🎯 Bấm nút Start Test sau khi mở Assessment Center:", startTestBtn);
+              showAiToast("🚀 Đang khởi động bài thi trong Assessment Center...", 3000);
               triggerSmartClick(startTestBtn);
+              try { if (typeof startTestBtn.click === "function") startTestBtn.click(); } catch(e) {}
+              try {
+                const uid = "ac_test_" + Date.now();
+                startTestBtn.setAttribute("data-ai-click", uid);
+                window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+                  detail: { uid, text: startTestBtn.innerText || "start test" }
+                }));
+              } catch(e) {}
               await sleep(4000);
               continue;
             }
@@ -1488,6 +1543,7 @@
   }
 
   function openAssessmentCenter() {
+    // 1. Nếu modal Assessment Center đã mở sẵn trên màn hình
     const modalHeader = queryAllInDocs("h1, h2, h3, h4, div, span").find(el => {
       if (isAiElement(el) || !isElementVisible(el)) return false;
       const t = (el.innerText || "").trim().toLowerCase();
@@ -1497,40 +1553,106 @@
       return true;
     }
 
-    const sideNavItems = queryAllInDocs("a, button, li, div, i, span").filter(el => {
+    // 2. Tìm phần tử menu chứa từ khóa "assessment"
+    const sideNavItems = queryAllInDocs("a, button, li, div, i, span, svg").filter(el => {
       if (isAiElement(el) || !isElementVisible(el)) return false;
       const title = (el.getAttribute("title") || "").toLowerCase();
-      const tooltip = (el.getAttribute("data-original-title") || el.getAttribute("aria-label") || "").toLowerCase();
+      const tooltip = (
+        el.getAttribute("data-original-title") ||
+        el.getAttribute("uib-tooltip") ||
+        el.getAttribute("tooltip") ||
+        el.getAttribute("data-tooltip") ||
+        el.getAttribute("ng-reflect-tooltip") ||
+        el.getAttribute("aria-label") || ""
+      ).toLowerCase();
       const text = (el.innerText || "").toLowerCase();
       const cl = (el.className || "").toString().toLowerCase();
       const id = (el.id || "").toLowerCase();
+      const href = (el.getAttribute("href") || "").toLowerCase();
       return (
         title.includes("assessment") || tooltip.includes("assessment") ||
-        text.includes("assessment") || id.includes("assessment") || cl.includes("assessment")
+        text.includes("assessment") || id.includes("assessment") || cl.includes("assessment") ||
+        href.includes("assessment") || href.includes("test")
       );
     });
 
     if (sideNavItems.length > 0) {
-      console.log("[MasterAuto] 🎯 Click mở Assessment Center trên menu:", sideNavItems[0]);
+      console.log("[MasterAuto] 🎯 Click mở Assessment Center trên menu (theo keyword/tooltip):", sideNavItems[0]);
+      showAiToast("📂 Đang mở Assessment Center...", 2000);
       triggerSmartClick(sideNavItems[0]);
       return true;
     }
+
+    // 3. Fallback: Toàn bộ icon thanh bên xếp dọc ở lề trái (rect.left < 90px)
+    const allLeftNavIcons = queryAllInDocs("a, button, li, div[role='button']").filter(el => {
+      if (isAiElement(el) || !isElementVisible(el)) return false;
+      const r = el.getBoundingClientRect();
+      return r.left >= 0 && r.left < 90 && r.width >= 20 && r.height >= 20 && r.top > 40;
+    });
+
+    if (allLeftNavIcons.length >= 3) {
+      allLeftNavIcons.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+      // Index 2 hoặc 3 trên thanh bên là icon Assessment Center (clipboard)
+      const targetNav = allLeftNavIcons.find(el => {
+        const cl = (el.className || "").toString().toLowerCase();
+        return cl.includes("assessment") || cl.includes("test");
+      }) || allLeftNavIcons[Math.min(2, allLeftNavIcons.length - 1)];
+
+      console.log("[MasterAuto] 🎯 Click mở Assessment Center theo vị trí icon trên thanh bên trái:", targetNav);
+      showAiToast("📂 Đang mở Assessment Center từ thanh bên...", 2000);
+      triggerSmartClick(targetNav);
+      return true;
+    }
+
     return false;
   }
 
   function findAssessmentCenterStartTestButton() {
-    const candidates = queryAllInDocs("button, a, input[type='button'], div[role='button']").filter(el => {
-      if (isAiElement(el) || !isElementVisible(el)) return false;
-      const t = (el.innerText || el.value || "").trim().toLowerCase();
-      return t === "start test" || t === "start" || (el.className && el.className.toString().toLowerCase().includes("starttest"));
+    // 1. Quét tất cả các phần tử có chữ "Start Test" hoặc class/id liên quan
+    const all = queryAllInDocs("button, a, input, div, span, p, [role='button']");
+    const candidates = all.filter(el => {
+      if (isAiElement(el)) return false;
+      const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || "").trim();
+      const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
+      const cl = (el.className || "").toString().toLowerCase();
+      const id = (el.id || "").toLowerCase();
+
+      if (norm === "start test" || norm.includes("start test") || /start\s*test/i.test(norm)) return true;
+      if (cl.includes("starttest") || cl.includes("start-test") || id.includes("starttest")) return true;
+      return false;
     });
 
     for (const b of candidates) {
       if (!b.disabled && !b.classList.contains("disabled") && !b.getAttribute("disabled")) {
+        const parentRow = b.closest("tr, li, .row, div");
+        const rowText = (parentRow?.innerText || parentRow?.textContent || "").toLowerCase();
+        if (rowText.includes("midterm") || rowText.includes("final") || rowText.includes("module") || rowText.includes("test")) {
+          console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test chuẩn xác cho bài thi:", b, rowText.replace(/\n+/g, " ").trim());
+          return b;
+        }
         return b;
       }
     }
-    return candidates[0] || null;
+
+    if (candidates.length > 0) return candidates[0];
+
+    // 2. Fallback: Tìm hàng chứa tên bài test (Midterm / Final) và lấy nút trong hàng đó
+    const rows = queryAllInDocs("tr, li, .row, div").filter(row => {
+      if (isAiElement(row)) return false;
+      const t = (row.innerText || row.textContent || "").toLowerCase();
+      return (t.includes("midterm test") || t.includes("final test") || t.includes("module 2") || t.includes("module 3")) &&
+             (t.includes("start") || t.includes("test"));
+    });
+
+    for (const row of rows) {
+      const btnInRow = row.querySelector("button, a, input, [role='button'], div.btn, .btn, [class*='btn' i]");
+      if (btnInRow && !isAiElement(btnInRow) && !btnInRow.disabled) {
+        console.log("[MasterAuto] 🎯 Đã tìm thấy nút Start Test trong hàng bài thi:", btnInRow);
+        return btnInRow;
+      }
+    }
+
+    return null;
   }
 
   function findHomeContinueButton() {
@@ -1595,19 +1717,32 @@
     return false;
   }
 
-  // Dọn dẹp và tắt tự động chạy ngầm nếu đang ở màn hình trang chủ (home)
+  // Dọn dẹp trạng thái khi ở trang chủ (home) nhưng duy trì MasterAuto cho chuỗi bài Assessment Center
   function cleanupHomePageState() {
     const isHome = window.location.hash.includes("home") || window.location.href.includes("#/home");
     if (isHome) {
-      stopMasterAuto();
       stopAutoNextLoop();
       try {
-        chrome.storage.local.set({ masterAutoMode: false, autoNextMode: false });
+        chrome.storage.local.set({ autoNextMode: false });
       } catch (e) {}
       const card = document.getElementById("ai-solver-card");
       if (card) card.remove();
       const reviewModal = document.getElementById("ai-review-modal");
       if (reviewModal) reviewModal.remove();
+
+      // Duy trì MasterAuto khi đang chạy chuỗi 5 bài thi Assessment Center
+      chrome.storage.local.get(["masterAutoMode"], (res) => {
+        if (res && res.masterAutoMode) {
+          console.log("[MasterAuto] 🏠 Đang ở trang chủ, tiếp tục chuỗi bài thi Assessment Center...");
+          setTimeout(() => {
+            if (!isMasterAutoRunning) {
+              startMasterAuto();
+            }
+          }, 1500);
+        } else {
+          stopMasterAuto();
+        }
+      });
     }
   }
 
@@ -1615,22 +1750,21 @@
   window.addEventListener("hashchange", cleanupHomePageState);
   window.addEventListener("popstate", cleanupHomePageState);
 
-  // Chỉ tiếp tục Auto khi THỰC SỰ đang ở trong bài tập/bài thi (Tuyệt đối không chạy ở trang chủ)
+  // Tiếp tục Auto khi ở trong bài thi hoặc chuỗi bài thi trên trang chủ
   chrome.storage.local.get(["masterAutoMode", "autoNextMode"], (res) => {
     const isHome = window.location.hash.includes("home") || window.location.href.includes("#/home");
-    if (isHome) return;
 
     // 1. Tự động quét và nhấn nút Bắt đầu / Start Section ngay khi trang tải xong
     findAndClickSectionTransitionButton();
 
     if (res && res.masterAutoMode) {
-      console.log("[MasterAuto] 🔄 Đang ở trong bài thi, tiếp tục Siêu Auto...");
+      console.log("[MasterAuto] 🔄 Đang bật Siêu Auto, tiếp tục tiến trình tự động giải...");
       setTimeout(() => {
         if (!isMasterAutoRunning) {
           startMasterAuto();
         }
       }, 1500);
-    } else if (res && res.autoNextMode !== false) {
+    } else if (res && res.autoNextMode !== false && !isHome) {
       console.log("[AutoNext] 🔄 Chế độ Tự Động Next đang bật, sẵn sàng tự động giải...");
       setTimeout(() => {
         if (!isAutoNextRunning) {
@@ -1788,28 +1922,120 @@
     return results;
   }
 
-  function isElementVisible(el) {
+  function isSystemOrDialogRadio(el) {
     if (!el) return false;
-    // Input radio hoặc checkbox trong form trắc nghiệm dù bị ẩn CSS vẫn là mục tiêu tương tác hợp lệ
-    if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+
+    // 1. Kiểm tra ID, Name, Class của chính radio
+    const selfId = (el.id || "").toLowerCase();
+    const selfName = (el.name || "").toLowerCase();
+    const selfClass = (el.className || "").toString().toLowerCase();
+    const idNameCombined = `${selfId} ${selfName} ${selfClass}`;
+
+    if (/(?:resume|newtest|startnew|timedtest|untimedtest|dialog|modal|popup|quizmode|testmode|testoption)/i.test(idNameCombined)) {
       return true;
     }
 
-    // Fast path: nếu offsetParent tồn tại và có kích thước thực tế
+    // 2. Kiểm tra các container hoặc modal/dialog tổ tiên
+    const modalAncestor = el.closest('dialog, .modal, .dialog, .popup, [role="dialog"], [role="alertdialog"], #modalResume, #resumeModal, #dialogResume, #popResume, [id*="resume" i], [id*="modal" i], [class*="resume" i]');
+    if (modalAncestor) {
+      const mText = (modalAncestor.innerText || modalAncestor.textContent || "").toLowerCase();
+      const mId = (modalAncestor.id || "").toLowerCase();
+      const mClass = (modalAncestor.className || "").toString().toLowerCase();
+      if (/resume|start a new test|dialog|alert|confirm|prompt|timeout|option/i.test(`${mId} ${mClass} ${mText}`)) {
+        return true;
+      }
+    }
+
+    // 3. Kiểm tra nhãn văn bản (Label) hoặc nội dung xung quanh radio
+    const labelEl = (el.id ? (el.ownerDocument || document).querySelector(`label[for="${el.id}"]`) : null) || el.closest('label') || el.parentElement;
+    const labelText = (labelEl ? (labelEl.innerText || labelEl.textContent || "") : (el.value || "")).trim().toLowerCase();
+    if (/^(?:resume(?:\s+the)?\s+test|start\s+(?:a\s+)?new\s+test|timed\s+test|untimed\s+test|start\s+new|tiếp\s+tục|bắt\s+đầu\s+mới)/i.test(labelText)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function isElementVisible(el) {
+    if (!el || !el.isConnected) return false;
+
+    // 1. Nếu là radio/checkbox hệ thống/dialog (như Resume test / Start a new test) -> LUÔN FALSE
+    if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+      if (isSystemOrDialogRadio(el)) return false;
+    }
+
+    // 2. Kiểm tra nhanh bằng checkVisibility() chuẩn HTML5 (Chrome 105+)
+    // Thuộc tính này duyệt ngược toàn bộ cây tổ tiên DOM để phát hiện display: none / visibility: hidden / content-visibility
+    if (typeof el.checkVisibility === 'function') {
+      try {
+        if (!el.checkVisibility({ checkVisibilityCSS: true })) {
+          // Nếu phần tử là input (đặc biệt radio/checkbox) bị ẩn vì custom styling (ví dụ display: none trên chính input)
+          // nhưng thẻ <label> hoặc wrapper hiển thị của nó vẫn đang mở trên màn hình:
+          if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+            const labelOrWrapper = el.labels?.[0] || el.closest('label, .choice, .option, tr, li');
+            if (labelOrWrapper && labelOrWrapper !== el) {
+              if (typeof labelOrWrapper.checkVisibility === 'function') {
+                if (!labelOrWrapper.checkVisibility({ checkVisibilityCSS: true })) return false;
+              }
+              const lRect = labelOrWrapper.getBoundingClientRect();
+              if (lRect.width === 0 && lRect.height === 0) return false;
+            } else {
+              return false;
+            }
+          } else {
+            return false;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Kiểm tra xem phần tử có nằm trong modal/dialog bị ẩn hoặc có thuộc tính hidden không
+    if (el.closest('[hidden], [aria-hidden="true"], .modal:not(.show):not(.in):not(.active), .dialog:not(.show):not(.in):not(.active), [style*="display: none"], [style*="display:none"], [style*="visibility: hidden"], [style*="visibility:hidden"]')) {
+      return false;
+    }
+
+    // 4. Kiểm tra computedStyle của chính phần tử
+    const win = el.ownerDocument?.defaultView || window;
+    try {
+      const style = win.getComputedStyle(el);
+      if (style) {
+        if (style.display === 'none' || style.visibility === 'hidden') {
+          // Nếu là input radio/checkbox bị display: none cho custom style, kiểm tra label
+          if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+            const labelOrWrapper = el.labels?.[0] || el.closest('label, .choice, .option, tr, li');
+            if (!labelOrWrapper) return false;
+            const lwStyle = win.getComputedStyle(labelOrWrapper);
+            if (lwStyle.display === 'none' || lwStyle.visibility === 'hidden') return false;
+          } else {
+            return false;
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 5. Kiểm tra kích thước và offsetParent
     if (el.offsetParent !== null && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
       return true;
     }
 
+    // Nếu offsetParent === null: có thể do position: fixed hoặc bị ẩn toàn bộ
     try {
-      const win = el.ownerDocument?.defaultView || window;
       const style = win.getComputedStyle(el);
-      if (style && (style.display === 'none' || style.visibility === 'hidden')) {
-        return false;
-      }
-      if (style && style.opacity === '0' && el.tagName !== 'INPUT') {
-        return false;
+      if (style && style.position === 'fixed') {
+        const r = el.getBoundingClientRect();
+        return (r.width > 0 && r.height > 0);
       }
     } catch (e) {}
+
+    // Trường hợp radio input bị ẩn do custom radio (offsetParent = null hoặc w=0, h=0)
+    if (el.tagName === 'INPUT' && (el.type === 'radio' || el.type === 'checkbox')) {
+      const labelOrWrapper = el.labels?.[0] || el.closest('label, .choice, .option, tr, li');
+      if (labelOrWrapper && labelOrWrapper.offsetParent !== null) {
+        const lRect = labelOrWrapper.getBoundingClientRect();
+        return (lRect.width > 0 && lRect.height > 0);
+      }
+    }
+
     const r = el.getBoundingClientRect();
     return (r.width > 0 && r.height > 0);
   }
@@ -2027,13 +2253,16 @@
    */
   function isCurrentInListeningSection() {
     const text = getCachedPageText().toLowerCase();
+    const title = (getCurrentQuestionTitle() || "").toLowerCase();
     return (
+      title.includes("listening") ||
       text.includes("listening part") ||
       text.includes("listening test") ||
       text.includes("spoken only one time") ||
       text.includes("hear four statements") ||
       text.includes("hear some conversations") ||
-      text.includes("hear some talks")
+      text.includes("hear some talks") ||
+      queryAllInDocs("audio, video").length > 0
     );
   }
 
@@ -2050,127 +2279,212 @@
   }
 
   /**
-   * Tự động phát hiện và nhấn các nút chuẩn bị/bắt đầu bài thi TOEIC Test (ETS OLPC)
-   * 1. Màn hình SysCheck: Kiểm tra hệ thống -> Bấm Proceed / Next / Confirm
-   * 2. Màn hình chọn mode: "Please select test mode" -> Chọn mode & Bấm [ Go ]
-   * 3. Màn hình chào mừng: "Welcome to the TOEIC Practice Test" -> Bấm [ Start ]
+   * Tự động phát hiện và xử lý các màn hình chuẩn bị/bắt đầu bài thi TOEIC Test (ETS OLPC)
+   * 1. Màn hình chọn mode: "Please select test mode" -> Chọn [ Test Mode ] trong dropdown & Bấm [ Go ]
+   * 2. Màn hình SysCheck / Test your sound: Kiểm tra âm thanh/hệ thống -> Bấm [ Next ] / [ Proceed ]
+   * 3. Màn hình Chào mừng: "Welcome to the TOEIC Practice Test" -> Bấm [ Start ]
    * 4. Màn hình Directions (hướng dẫn không có câu hỏi) -> Bấm [ Next ]
+   * 5. Màn hình câu 1 đang phát audio hướng dẫn Part 1 (chưa hiện A, B, C, D) -> Tua nhanh audio để vào thẳng câu hỏi 1
    */
   function findAndClickTestIntroButtons() {
     const allDocs = getAllExerciseDocuments();
     const allDocsText = allDocs.map(d => d.body?.textContent || "").join(" ");
     const currentUrl = window.location.href.toLowerCase();
 
-    // 1. Màn hình SysCheck.aspx (Kiểm tra hệ thống trước khi vào bài test)
-    if (currentUrl.includes("syscheck.aspx") || allDocsText.includes("SysCheck") || allDocsText.includes("System Check")) {
-      const proceedBtn = queryAllInDocs("#btnNext, .btnNext, input[type='submit'], input[type='button'], button, [role='button']").find(el => {
-        if (isAiElement(el) || !isElementVisible(el)) return false;
-        const t = (el.innerText || el.value || "").trim().toLowerCase();
+    // =========================================================================
+    // BƯỚC 1: Màn hình "Please select test mode" (Dropdown Learning Mode / Test Mode)
+    // =========================================================================
+    const hasSelectModeText = (
+      allDocsText.includes("select test mode") ||
+      allDocsText.includes("Please select test mode") ||
+      allDocsText.includes("Learning Mode") ||
+      allDocsText.includes("Test Mode") ||
+      currentUrl.includes("modeselect") ||
+      currentUrl.includes("test.aspx")
+    );
+
+    const allSelects = queryAllInDocs("select");
+    let isTestModeSelected = false;
+    let testModeSelectEl = null;
+
+    for (const sel of allSelects) {
+      if (isAiElement(sel)) continue;
+      const options = Array.from(sel.options || []);
+      const testModeOpt = options.find(opt => {
+        const txt = (opt.text || opt.innerText || opt.value || "").trim().toLowerCase();
+        return txt === "test mode" || txt.includes("test mode");
+      });
+
+      if (testModeOpt) {
+        testModeSelectEl = sel;
+        if (sel.value !== testModeOpt.value || !testModeOpt.selected) {
+          console.log("[TestStarter] 🎯 Phát hiện dropdown! Đang đổi sang 'Test Mode':", testModeOpt.value, testModeOpt.text);
+          sel.value = testModeOpt.value;
+          sel.selectedIndex = testModeOpt.index;
+          testModeOpt.selected = true;
+          try { sel.dispatchEvent(new Event("change", { bubbles: true })); } catch(e) {}
+          try { sel.dispatchEvent(new Event("input", { bubbles: true })); } catch(e) {}
+          try { sel.dispatchEvent(new Event("blur", { bubbles: true })); } catch(e) {}
+
+          // Kích hoạt qua Main World Shield
+          try {
+            window.dispatchEvent(new CustomEvent("ai_select_dropdown", {
+              detail: { value: testModeOpt.value, text: "Test Mode" }
+            }));
+          } catch (e) {}
+        }
+        isTestModeSelected = true;
+        break;
+      }
+    }
+
+    if (hasSelectModeText && (isTestModeSelected || testModeSelectEl)) {
+      // Tìm nút "Go" màu xanh biển bên dưới dropdown (Image 3)
+      const allGoCandidates = queryAllInDocs(
+        "#btnGo, [name='btnGo'], [id*='btnGo' i], [id*='btn_go' i], [id='go' i], button, a, input, div, span, [role='button']"
+      );
+
+      let goBtn = allGoCandidates.find(el => {
+        if (isAiElement(el) || el === testModeSelectEl) return false;
+        const raw = (el.innerText || el.textContent || el.value || el.getAttribute("title") || "").trim();
+        const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
+        const id = (el.id || "").toLowerCase();
+        const cl = (el.className || "").toString().toLowerCase();
+        const name = (el.getAttribute("name") || "").toLowerCase();
+
+        if (id.includes("btngo") || cl.includes("btngo") || id === "go" || name === "btngo" || name.includes("go")) return true;
+        if (norm === "go" || /^\s*go\s*$/i.test(norm)) return true;
+        return false;
+      });
+
+      if (!goBtn && testModeSelectEl) {
+        const container = testModeSelectEl.closest("div, form, table, .modal, .dialog") || document;
+        goBtn = Array.from(container.querySelectorAll("button, a, input[type='button'], input[type='submit'], [role='button'], div, span")).find(el => {
+          if (isAiElement(el) || el === testModeSelectEl || el.tagName === "SELECT" || el.tagName === "OPTION") return false;
+          const r = el.getBoundingClientRect();
+          const t = (el.innerText || el.value || "").trim().toLowerCase();
+          return (r.width > 20 && r.height > 15 && (t === "go" || t.length <= 4 || el.tagName === "INPUT" || el.tagName === "BUTTON" || el.tagName === "A"));
+        });
+      }
+
+      if (goBtn) {
+        console.log("[TestStarter] 🚀 Đã click nút 'Go' bắt đầu Test Mode:", goBtn);
+        showAiToast("🚀 Đã chọn 'Test Mode' và click nút Go...", 2500);
+        triggerSmartClick(goBtn);
+        try { if (typeof goBtn.click === "function") goBtn.click(); } catch(e) {}
+        try {
+          const uid = "go_" + Date.now();
+          goBtn.setAttribute("data-ai-click", uid);
+          window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+            detail: { uid, text: "Go" }
+          }));
+        } catch(e) {}
+        try {
+          if (goBtn.form && typeof goBtn.form.submit === "function") {
+            goBtn.form.submit();
+          }
+        } catch(e) {}
+        return true;
+      }
+    }
+
+    // =========================================================================
+    // BƯỚC 2: Màn hình SysCheck / Test your sound (Kiểm tra âm thanh trước khi thi)
+    // =========================================================================
+    const isSoundCheck = (
+      allDocsText.includes("test your sound") ||
+      allDocsText.includes("Test your sound") ||
+      allDocsText.includes("require sound") ||
+      allDocsText.includes("SysCheck") ||
+      allDocsText.includes("System Check") ||
+      currentUrl.includes("syscheck.aspx")
+    );
+
+    if (isSoundCheck) {
+      const proceedBtn = queryAllInDocs("#btnNext, .btnNext, input[type='submit'], input[type='button'], button, [role='button'], a, div, span").find(el => {
+        if (isAiElement(el)) return false;
+        const raw = (el.innerText || el.textContent || el.value || "").trim();
+        const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
         const id = (el.id || "").toLowerCase();
         const cl = (el.className || "").toString().toLowerCase();
         return (
-          t === "next" || t.includes("next") || t.includes("tiếp") || t.includes("start") ||
-          t.includes("confirm") || t.includes("xác nhận") || t.includes("đồng ý") || t.includes("vào bài") ||
+          norm === "next" || norm.includes("next") || norm.includes("tiếp") || norm.includes("start") ||
+          norm.includes("confirm") || norm.includes("xác nhận") || norm.includes("đồng ý") || norm.includes("vào bài") ||
+          norm.includes("proceed") || norm.includes("continue") ||
           id.includes("btnnext") || cl.includes("btnnext") || id.includes("confirm") || id.includes("start")
         );
       });
       if (proceedBtn) {
-        console.log("[TestStarter] 🚀 Đã click nút chuyển tiếp trên SysCheck:", proceedBtn);
-        showAiToast("🚀 Tự động vượt qua kiểm tra hệ thống (SysCheck)...", 2000);
+        console.log("[TestStarter] 🚀 Đã click nút chuyển tiếp trên SysCheck / Test your sound:", proceedBtn);
+        showAiToast("🚀 Tự động vượt qua kiểm tra âm thanh (Test your sound)...", 2000);
         triggerSmartClick(proceedBtn);
+        try { if (typeof proceedBtn.click === "function") proceedBtn.click(); } catch(e) {}
+        try {
+          const uid = "proceed_" + Date.now();
+          proceedBtn.setAttribute("data-ai-click", uid);
+          window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+            detail: { uid, text: proceedBtn.innerText || "next" }
+          }));
+        } catch(e) {}
         return true;
       }
     }
 
-    // 2. Màn hình "Please select test mode" / Chọn kiểu test lúc đầu (TRƯỚC KHI VÀO BÀI TEST)
-    // TUYỆT ĐỐI KHÔNG CHẠY KHI ĐANG TRONG BÀI THI CÓ CÂU HỎI TRẮC NGHIỆM!
-    const isTestQuestionPage = (
-      allDocsText.includes("Question ") ||
-      allDocsText.includes("Questions ") ||
-      allDocsText.includes("Part 1") ||
-      allDocsText.includes("Part 2") ||
-      allDocsText.includes("Part 3") ||
-      allDocsText.includes("Part 4") ||
-      allDocsText.includes("Part 5") ||
-      allDocsText.includes("Part 6") ||
-      allDocsText.includes("Part 7") ||
-      queryAllInDocs("input[type='radio']").filter(isElementVisible).length >= 3
-    );
-
-    if (
-      !isTestQuestionPage && (
-        allDocsText.includes("select test mode") || allDocsText.includes("Please select test mode") ||
-        currentUrl.includes("modeselect")
-      )
-    ) {
-      // Chỉ chọn radio đích danh có thuộc tính mode, TUYỆT ĐỐI KHÔNG CHỌN RADIO CÂU HỎI BÀI THI!
-      const modeRadios = queryAllInDocs("input[type='radio'][name*='mode' i], input[type='radio'][id*='mode' i]").filter(isElementVisible);
-      if (modeRadios.length > 0 && !modeRadios.some(r => isRadioSelected(r))) {
-        checkRadioButtonSafely(modeRadios[0]);
-      }
-
-      const goBtn = queryAllInDocs("#btnGo, .btnGo, button, input[type='button'], input[type='submit'], [role='button']").find(el => {
-        if (isAiElement(el) || !isElementVisible(el)) return false;
-        const t = (el.innerText || el.value || "").trim().toLowerCase();
-        const id = (el.id || "").toLowerCase();
-        const cl = (el.className || "").toString().toLowerCase();
-        return t === "go" || t.includes("bắt đầu") || id.includes("btngo") || cl.includes("btngo") || id === "go";
-      });
-      if (goBtn) {
-        console.log("[TestStarter] 🚀 Đã click nút 'Go' trên màn hình chọn chế độ thi:", goBtn);
-        showAiToast("🚀 Đang tự động chọn kiểu test và bắt đầu...", 2000);
-        triggerSmartClick(goBtn);
-        return true;
-      }
+    // =========================================================================
+    // BƯỚC 3: Màn hình Chào mừng / Bắt đầu bài kiểm tra -> Bấm "Start"
+    // =========================================================================
+    const startBtn = queryAllInDocs("#btnStart, .btnStart, button, input[type='button'], input[type='submit'], [role='button'], a, div, span").find(el => {
+      if (isAiElement(el) || isDangerousSubmitButton(el)) return false;
+      const raw = (el.innerText || el.textContent || el.value || "").trim();
+      const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
+      const id = (el.id || "").toLowerCase();
+      const cl = (el.className || "").toString().toLowerCase();
+      return (
+        norm === "start" || norm === "start test" || norm === "start exam" || norm === "start quiz" ||
+        norm === "bắt đầu" || norm === "bắt đầu làm bài" || norm === "bắt đầu thi" || norm === "vào thi" ||
+        id.includes("btnstart") || cl.includes("btnstart") ||
+        id.includes("startbtn") || cl.includes("startbtn") ||
+        id.includes("btn-start") || cl.includes("btn-start") ||
+        id.includes("start-btn") || cl.includes("start-btn")
+      );
+    });
+    if (startBtn) {
+      console.log("[TestStarter] 🚀 Đã click nút 'Start/Bắt đầu' trên màn hình bài test:", startBtn);
+      showAiToast("🚀 Đang tự động nhấn nút Bắt đầu (Start)...", 2500);
+      triggerSmartClick(startBtn);
+      try { if (typeof startBtn.click === "function") startBtn.click(); } catch(e) {}
+      try {
+        const uid = "start_" + Date.now();
+        startBtn.setAttribute("data-ai-click", uid);
+        window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+          detail: { uid, text: startBtn.innerText || "start" }
+        }));
+      } catch(e) {}
+      return true;
     }
 
-    // 3. Màn hình Chào mừng / Bắt đầu bài kiểm tra -> Bấm "Start" / "Bắt đầu"
-    if (!isTestQuestionPage) {
-      const startBtn = queryAllInDocs("#btnStart, .btnStart, button, input[type='button'], input[type='submit'], [role='button'], a.btn").find(el => {
-        if (isAiElement(el) || !isElementVisible(el) || isDangerousSubmitButton(el)) return false;
-        const t = (el.innerText || el.value || "").trim().toLowerCase();
-        const id = (el.id || "").toLowerCase();
-        const cl = (el.className || "").toString().toLowerCase();
-        return (
-          t === "start" || t === "start test" || t === "start exam" || t === "start quiz" ||
-          t === "bắt đầu" || t === "bắt đầu làm bài" || t === "bắt đầu thi" || t === "vào thi" ||
-          id.includes("btnstart") || cl.includes("btnstart") ||
-          id.includes("startbtn") || cl.includes("startbtn") ||
-          id.includes("btn-start") || cl.includes("btn-start") ||
-          id.includes("start-btn") || cl.includes("start-btn")
-        );
-      });
-      if (startBtn) {
-        console.log("[TestStarter] 🚀 Đã click nút 'Start/Bắt đầu' trên màn hình bài test:", startBtn);
-        showAiToast("🚀 Đang tự động nhấn nút Bắt đầu (Start)...", 2500);
-        triggerSmartClick(startBtn);
-        return true;
-      }
-    }
-
-    // 4. Màn hình hướng dẫn Part (Directions) không có câu hỏi -> Tự động bấm "Next"
+    // =========================================================================
+    // BƯỚC 4: Màn hình hướng dẫn Part (Directions) không có câu hỏi -> Bấm "Next"
+    // =========================================================================
     const hasDirections = (
       allDocsText.includes("Listening Test") ||
       allDocsText.includes("Reading Test") ||
       allDocsText.includes("Directions") ||
-      allDocsText.includes("Listening Part") ||
-      allDocsText.includes("Reading Part") ||
-      allDocsText.includes("Intermediate Final Test") ||
-      allDocsText.includes("Intermediate Midterm Test") ||
       allDocsText.includes("demonstrate how well you understand") ||
       allDocsText.includes("will be spoken only one time")
     );
-    const hasZeroInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").filter(isElementVisible).length === 0;
+    const hasZeroInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").length === 0;
 
-    if (hasDirections && hasZeroInputs) {
-      const nextBtn = queryAllInDocs("#btnNext, .btnNext, button, input[type='button'], input[type='image'], [role='button']").find(el => {
-        if (isAiElement(el) || !isElementVisible(el) || isDangerousSubmitButton(el)) return false;
-        const t = (el.innerText || el.value || "").trim().toLowerCase();
+    if (hasDirections && hasZeroInputs && !allDocsText.includes("Question 1 of")) {
+      const nextBtn = queryAllInDocs("#btnNext, .btnNext, button, input[type='button'], input[type='image'], [role='button'], a, div, span").find(el => {
+        if (isAiElement(el) || isDangerousSubmitButton(el)) return false;
+        const raw = (el.innerText || el.textContent || el.value || "").trim();
+        const norm = raw.replace(/[\s\u00A0\u200B]+/g, " ").toLowerCase();
         const id = (el.id || "").toLowerCase();
         const cl = (el.className || "").toString().toLowerCase();
         return (
           id === "btnnext" || cl.includes("btnnext") || id.includes("btnnext") ||
-          t === "next" || t.startsWith("next") || t === "tiếp" || t === "tiếp tục" ||
+          norm === "next" || norm.startsWith("next") || norm === "tiếp" || norm === "tiếp tục" ||
           cl.includes("next") || id.includes("next")
         );
       });
@@ -2178,8 +2492,27 @@
         console.log("[TestStarter] 🚀 Đã click nút 'Next' qua màn hình Directions:", nextBtn);
         showAiToast("📖 Màn hình hướng dẫn — Đang tự động bấm Next vào bài làm...", 2000);
         triggerSmartClick(nextBtn);
+        try { if (typeof nextBtn.click === "function") nextBtn.click(); } catch(e) {}
         return true;
       }
+    }
+
+    // =========================================================================
+    // BƯỚC 5: Màn hình câu 1 đang phát âm thanh giới thiệu Part 1 (Image 5)
+    // "Listening Part 1 >> Question 1 of 100", bên phải chưa hiện 4 radio (A), (B), (C), (D)
+    // Người dùng yêu cầu: "có thể next tiếp phần nói đầu tiên để vào thẳng câu hỏi đầu tiên"
+    // =========================================================================
+    const isQuestion1Intro = (
+      (allDocsText.includes("Listening Part 1") || allDocsText.includes("Question 1 of")) &&
+      hasZeroInputs
+    );
+
+    if (isQuestion1Intro) {
+      console.log("[TestStarter] ⚡ Đang phát audio hướng dẫn Part 1 (chưa hiện đáp án). Kích hoạt tua nhanh để vào thẳng câu hỏi 1...");
+      showAiToast("⚡ Đang tua nhanh phần nói giới thiệu để vào thẳng Câu 1...", 2000);
+      triggerFastForwardAudio();
+      findAndClickNextButton();
+      return true;
     }
 
     return false;
@@ -2269,7 +2602,13 @@
       return false;
     }
 
-    // 1. ƯU TIÊN SỐ 1: Quét nút Start Section / Start
+    // 1. Kiểm tra màn hình chọn mode hoặc SysCheck hoặc Welcome trước
+    if (findAndClickTestIntroButtons()) {
+      console.log("[AutoSection] 🚀 Đã xử lý màn hình chuẩn bị/chọn mode thi!");
+      return true;
+    }
+
+    // 2. ƯU TIÊN: Quét nút Start Section / Start
     const btn = getSectionTransitionButton();
     if (btn) {
       console.log("[AutoSection] 🚀 Phát hiện nút Start / chuyển tiếp Section! Tự động nhấn:", btn);
@@ -2278,8 +2617,16 @@
         showAiToast("🚀 Tự động nhấn nút Bắt đầu (Start)...", 2500);
       } catch (e) {}
 
-      // Lần 1: Nhấn chuẩn thông qua triggerSmartClick
+      // Lần 1: Nhấn chuẩn thông qua triggerSmartClick + native click + Main World
       triggerSmartClick(btn);
+      try { if (typeof btn.click === "function") btn.click(); } catch (e) {}
+      try {
+        const uid = "trans_" + Date.now();
+        btn.setAttribute("data-ai-click", uid);
+        window.dispatchEvent(new CustomEvent("ai_trigger_click", {
+          detail: { uid, text: btn.innerText || btn.value || "start section" }
+        }));
+      } catch (e) {}
 
       // CHỐT CHẶN AN TOÀN: Đợi tối đa 4.5 giây cho popup / màn hình chuyển tiếp đóng
       const startWait = Date.now();
@@ -2294,14 +2641,12 @@
         retryCount++;
         console.log(`[AutoSection] 🔄 Nút Start vẫn hiển thị sau ${(Date.now() - startWait)}ms, thử kích hoạt bổ sung lần ${retryCount}...`);
 
-        // Thử kích hoạt native click và direct event trên target và wrapper
         try {
           if (typeof still.click === "function") still.click();
           const p = still.closest('button, a, input, [role="button"], .btn');
           if (p && typeof p.click === "function") p.click();
         } catch (eNative) {}
 
-        // Kích hoạt lại smart click
         triggerSmartClick(still);
       }
 
@@ -2319,11 +2664,6 @@
       return true;
     }
 
-    // 2. Nếu không có nút Start Section cụ thể, mới kiểm tra màn hình chào mừng / chọn mode / directions của bài kiểm tra
-    if (findAndClickTestIntroButtons()) {
-      return true;
-    }
-
     return false;
   }
 
@@ -2334,7 +2674,13 @@
     console.log("[AutoNext] Đang tìm nút Next...");
 
     // 0. Ưu tiên nút chuyển tiếp Section (Start Section) nếu xuất hiện
-    if (findAndClickSectionTransitionButton()) {
+    const transBtn = getSectionTransitionButton();
+    if (transBtn) {
+      triggerSmartClick(transBtn);
+      try { if (typeof transBtn.click === "function") transBtn.click(); } catch(e) {}
+      return true;
+    }
+    if (findAndClickTestIntroButtons()) {
       return true;
     }
 
@@ -2522,48 +2868,10 @@
   }
 
   /**
-   * ĐỒNG BỘ BẢO HIỂM 100%: Quét đáp án đang được chọn trên màn hình và lưu vào lịch sử nếu chưa có
-   * Đảm bảo không bao giờ bỏ sót bất kỳ câu hỏi nào trong bảng lịch sử
+   * Đã tắt việc chép đáp án theo yêu cầu: Tập trung 100% tài nguyên để giải và điền chính xác câu hỏi trên web
    */
   async function syncCurrentDOMAnswersToHistory(forcedQuestions = null) {
-    try {
-      const radioGroups = groupRadioButtons();
-      const questions = forcedQuestions || await scanDOMQuestions();
-      const currentSolutions = [];
-
-      if (radioGroups.length > 0) {
-        radioGroups.forEach((group, gIdx) => {
-          const checkedRadio = group.find(r => isRadioSelected(r));
-          if (checkedRadio) {
-            const checkedIdx = group.indexOf(checkedRadio);
-            let optText = extractRadioOptionText(checkedRadio, checkedIdx);
-            optText = (optText || "").replace(/\b(true|false)\b/gi, "").trim();
-            if (!optText || /^\(?[A-D]\)?$/i.test(optText)) {
-              optText = `(${String.fromCharCode(65 + checkedIdx)})`;
-            }
-            const qData = questions[gIdx] || questions[0];
-            const qNum = qData?.question_number || (gIdx + 1);
-            const qId = qData?.id || `q_${qNum}`;
-
-            currentSolutions.push({
-              question_id: qId,
-              question_number: qNum,
-              selected_index: checkedIdx >= 0 ? checkedIdx : 0,
-              selected_value: optText,
-              explanation: "Đáp án đã được chọn thành công trên bài thi.",
-              confidence: 0.98
-            });
-          }
-        });
-      }
-
-      if (currentSolutions.length > 0) {
-        await recordTestAnswers(currentSolutions, questions);
-        console.log(`[History] 🛡️ Bảo hiểm: Đã đồng bộ ${currentSolutions.length} câu vào lịch sử để không bỏ sót!`);
-      }
-    } catch (e) {
-      console.warn("[History] Lỗi đồng bộ bảo hiểm đáp án:", e);
-    }
+    return;
   }
 
   /**
@@ -2577,12 +2885,9 @@
     if (cachedBubbleEl) cachedBubbleEl.classList.add("solving");
 
     try {
-      // 0. Tự động chuyển tiếp nếu đang ở màn hình giới thiệu Section (ví dụ Listening Part 2 / Part 3 / Part 4 có nút "Start Section")
-      const transBtn = getSectionTransitionButton();
-      if (transBtn) {
-        if (solveText) solveText.innerText = "Bắt đầu Section...";
-        console.log("[Content] 🚀 Đang ở màn hình Start Section, tự động kích hoạt chuyển tiếp...");
-        await findAndClickSectionTransitionButton();
+      // 0. Tự động chuyển tiếp nếu đang ở màn hình giới thiệu Section, chọn Test Mode, SysCheck hoặc Welcome
+      if (await findAndClickSectionTransitionButton()) {
+        if (solveText) solveText.innerText = "Chuyển tiếp...";
         await sleep(1500);
         return { success: true, count: 0, solutions: [], transition: true };
       }
@@ -2602,25 +2907,16 @@
         return { success: true, count: 0, solutions: [], finished: true };
       }
 
-      // 0c. Hiển thị thẻ loading ngay lập tức
-      showLoadingCard();
-
       // 1. Trích xuất DOM câu hỏi từ tất cả tài liệu (bao gồm cả iframe)
       const questionsData = await scanDOMQuestions();
       console.log(`[Content] Trích xuất được ${questionsData.length} phần tử bài tập.`);
 
       // NẾU KHÔNG CÓ CÂU HỎI BÀI TẬP NÀO TRÊN MÀN HÌNH (màn hình chuyển tiếp Section, chọn kiểu test hoặc Directions):
       if (questionsData.length === 0) {
-        if (findAndClickSectionTransitionButton()) {
+        if (await findAndClickSectionTransitionButton()) {
           if (solveText) solveText.innerText = "Chuyển tiếp...";
-          const waitStart = Date.now();
-          while (Date.now() - waitStart < 5000) {
-            await sleep(600);
-            const hasInputs = queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible);
-            if (hasInputs) break;
-          }
-          await sleep(800);
-          return triggerScanAndSolve();
+          await sleep(1500);
+          return { success: true, count: 0, solutions: [], transition: true };
         }
 
         // Tự động kiểm tra nếu là màn hình Directions / Hướng dẫn / Chọn kiểu test không có câu hỏi:
@@ -2631,8 +2927,8 @@
           showAiToast("📖 Màn hình hướng dẫn/chọn kiểu test — Đang tự động bấm Next vào bài làm...", 2000);
           const clickedNext = findAndClickNextButton();
           if (clickedNext) {
-            await sleep(2000);
-            return triggerScanAndSolve();
+            await sleep(1500);
+            return { success: true, count: 0, solutions: [], transition: true };
           }
         }
 
@@ -2647,6 +2943,9 @@
         }, 1500);
         return { success: false, count: 0, solutions: [], reason: "no_questions_on_screen" };
       }
+
+      // 0c. CHỈ HIỂN THỊ THẺ LOADING KHI THỰC SỰ CÓ CÂU HỎI (tránh che màn hình chọn mode / chuyển tiếp)
+      showLoadingCard();
 
       // Gom toàn bộ nội dung văn bản từ tất cả iframe để AI hiểu toàn bộ ngữ cảnh bài tập
       const combinedPageText = getCachedPageText();
@@ -2749,13 +3048,16 @@
         allDocsText.includes("three responses spoken")
       );
       const hasGraphicKeyword = (
-        /graphic|chart|table|diagram|map|schedule|picture/i.test(allDocsText) ||
-        questionsData.some(q => /graphic|chart|table|diagram|map|schedule|picture|look at the/i.test(q.text || ""))
+        /graphic|chart|table|diagram|map|schedule|invoice|receipt|picture|look at the/i.test(allDocsText) ||
+        questionsData.some(q => /graphic|chart|table|diagram|map|schedule|invoice|receipt|picture|look at the/i.test(q.text || ""))
       );
       const isDragDrop = Boolean(allDocsText.includes("drag") || queryAllInDocs(".ui-draggable, .draggable, [draggable='true']").length > 0);
-      const isShortText = combinedPageText.length < 250;
+      const isShortText = combinedPageText.length < 180;
+      const allHaveFullText = questionsData.length > 0 && questionsData.every(q => q.text && q.text.length > 15 && q.options && q.options.length >= 2);
 
-      const shouldCaptureScreenshot = isPart1 || isPart2 || hasGraphicKeyword || isDragDrop || isShortText || !audioData;
+      // Tối ưu hóa siêu tốc: Chỉ chụp ảnh màn hình tab khi thực sự cần thiết (Part 1 tranh, bảng biểu/graphic, kéo thả, hoặc DOM thiếu text)
+      // Các câu hỏi đọc hiểu/ngữ pháp (Part 5, 6, 7) và Part 2 đã có đầy đủ Text/Audio trong DOM -> bỏ qua chụp ảnh để đạt tốc độ 1s!
+      const shouldCaptureScreenshot = isPart1 || hasGraphicKeyword || isDragDrop || isShortText || !allHaveFullText;
 
       if (shouldCaptureScreenshot) {
         try {
@@ -2856,6 +3158,13 @@
 
       // 5c. Tự động lưu lịch sử đáp án bài thi này
       await recordTestAnswers(solutions, questionsData);
+
+      // 5d. TURBO FAST-FORWARD AUDIO: Tua nhanh và kết thúc âm thanh lập tức sau khi chọn đáp án
+      if (isListeningExercise || queryAllInDocs("audio, video").length > 0) {
+        setTimeout(() => {
+          triggerFastForwardAudio();
+        }, 150);
+      }
 
       // 6. Hiển thị bảng kết quả nổi trên trang (transcript ở trên, đáp án ở dưới)
       showResultsCard(solutions, questionsData, conversationTranscript);
@@ -3019,19 +3328,11 @@
         const docRadios = allDocRadios.filter(r => {
           if (isAiElement(r) || seenRadios.has(r)) return false;
 
-          // Bỏ qua radio thuộc phần tử thực sự display:none hoặc hidden toàn bộ
-          const style = win.getComputedStyle(r);
-          if (style && (style.display === 'none' || style.visibility === 'hidden') && !r.closest('label, tr, td, li, .choice, .option, table, div')) {
-            return false;
-          }
+          // 1. Tuyệt đối loại bỏ các radio hệ thống/modal dialog (Start a new test, Resume test...)
+          if (isSystemOrDialogRadio(r)) return false;
 
-          const container = r.closest('label, tr, td, li, .choice, .option, table, div, p');
-          if (container) {
-            const cStyle = win.getComputedStyle(container);
-            if (cStyle && (cStyle.display === 'none' || cStyle.visibility === 'hidden')) {
-              return false;
-            }
-          }
+          // 2. Kiểm tra tính hiển thị thực tế
+          if (!isElementVisible(r)) return false;
 
           seenRadios.add(r);
           return true;
@@ -3047,7 +3348,7 @@
           const win = doc.defaultView || window;
           if (win !== window && win.frameElement && !isIframeVisible(win.frameElement)) continue;
           const customChoices = Array.from(doc.querySelectorAll('[role="radio"], button.choice, button.choice-btn, .choice-item, .answer-item, .option-item, .quiz-answer, button[class*="choice" i], button[class*="answer" i]'))
-            .filter(el => !isAiElement(el) && isElementVisible(el) && isElementOnScreen(el) && !seenRadios.has(el));
+            .filter(el => !isAiElement(el) && !isSystemOrDialogRadio(el) && isElementVisible(el) && isElementOnScreen(el) && !seenRadios.has(el));
           if (customChoices.length >= 2) {
             radios.push(...customChoices);
           }
@@ -3086,7 +3387,7 @@
     const docTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
     const cleanPageText = getCleanAllDocsText();
     const fullText = docTitles + "\n" + cleanPageText;
-    const headerRange = fullText.match(/\b(?:Questions?|Part\s*\d+\s*[-–—:]?\s*Questions?)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})\b/i);
+    const headerRange = fullText.match(/\b(?:Questions?|Part\s*\d+\s*[-–—:]?\s*Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i);
     if (headerRange) {
       const qStart = parseInt(headerRange[1], 10);
       const qEnd = parseInt(headerRange[2], 10);
@@ -3304,6 +3605,61 @@
   }
 
   /**
+   * Trích xuất số câu hỏi tối đa đã được lưu trong phiên hiện tại (bộ nhớ tạm)
+   */
+  function getMaxSavedQuestionNum() {
+    let maxNum = 0;
+    try {
+      if (window._lastSessionAnswers && Array.isArray(window._lastSessionAnswers)) {
+        window._lastSessionAnswers.forEach(a => {
+          const n = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+          if (n > maxNum) maxNum = n;
+        });
+      }
+    } catch (e) {}
+    return maxNum;
+  }
+
+  /**
+   * Tìm số câu hỏi đang được active từ thanh phân trang (palette / pagination) hoặc radio name
+   */
+  function extractActiveQuestionNumber(index = 0) {
+    try {
+      const activeSelectors = [
+        ".pagination .active", ".q-palette .active", ".question-nav .active", ".nav-item.active",
+        ".item-num.active", ".item-num.current", "button.active", "button.current", ".q-box.active",
+        ".q-item.active", "[aria-current='page']", "[aria-current='true']", ".current-question",
+        ".active-question", ".selected-question", ".current-q", ".active-q"
+      ];
+      for (const sel of activeSelectors) {
+        const els = queryAllInDocs(sel);
+        for (const el of els) {
+          if (isAiElement(el) || !isElementVisible(el)) continue;
+          const t = (el.innerText || "").trim();
+          const m = t.match(/^\d{1,3}$/);
+          if (m) {
+            const n = parseInt(m[0], 10);
+            if (n >= 1 && n <= 200) return n + index;
+          }
+        }
+      }
+
+      const radios = getVisibleTestRadios();
+      if (radios.length > 0) {
+        for (const r of radios) {
+          const nameAttr = (r.name || "") + " " + (r.id || "");
+          const match = nameAttr.match(/\b(?:question|q|item)[_-]?(\d{1,3})\b/i);
+          if (match) {
+            const n = parseInt(match[1], 10);
+            if (n >= 1 && n <= 200) return n + index;
+          }
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /**
    * Quét và trích xuất danh sách câu hỏi DOM (xuyên qua cả iframe)
    */
   async function scanDOMQuestions() {
@@ -3318,7 +3674,6 @@
 
     if (questionBlocks.length > 1) {
       questionBlocks.forEach((block, index) => {
-        const id = block.getAttribute('data-question-id') || block.id || `q_${index + 1}`;
         const titleEl = block.querySelector('.question-title, .question-text, .prompt, h3, h4, legend, .q-text, p') || block;
         const text = titleEl.innerText.trim();
 
@@ -3330,20 +3685,31 @@
           if (n >= 1 && n <= 200) parsedNum = n;
         }
         if (!parsedNum) {
-          const ofMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
+          const ofMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i) ||
+                          allDocsText.match(/\b(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
           if (ofMatch) {
             const qOf = parseInt(ofMatch[1], 10);
             if (!isNaN(qOf) && qOf >= 1 && qOf <= 200) parsedNum = qOf + index;
           }
         }
         if (!parsedNum) {
-          const headerRange = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—\s]|to|through)+\s*(\d{1,3})\b/i);
+          const headerRange = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i);
           if (headerRange) {
             const qStart = parseInt(headerRange[1], 10);
             if (!isNaN(qStart) && qStart >= 1) parsedNum = qStart + index;
           }
         }
+        if (!parsedNum) {
+          parsedNum = extractActiveQuestionNumber(index);
+        }
+        if (!parsedNum) {
+          const maxSaved = getMaxSavedQuestionNum();
+          if (maxSaved > 0) {
+            parsedNum = maxSaved + 1 + index;
+          }
+        }
         const qNum = parsedNum || (index + 1);
+        const id = `q_${qNum}`;
 
         const optionEls = Array.from(block.querySelectorAll('input[type="radio"], input[type="checkbox"], .option, .choice, label.btn, button.choice-btn'));
         const options = [];
@@ -3352,11 +3718,15 @@
           let optText = opt.tagName === 'INPUT' ? extractRadioOptionText(opt, optIdx) : (opt.innerText || '').trim();
           options.push(optText || `Option ${optIdx + 1}`);
           window._elementRefs.set(`${id}_opt_${optIdx}`, opt);
+          window._elementRefs.set(`q_${qNum}_opt_${optIdx}`, opt);
+          window._elementRefs.set(`radio_q_${index + 1}_opt_${optIdx}`, opt);
+          window._elementRefs.set(`q_${index + 1}_opt_${optIdx}`, opt);
         });
 
         const selectEl = block.querySelector('select');
         if (selectEl) {
           window._elementRefs.set(`${id}_select`, selectEl);
+          window._elementRefs.set(`q_${qNum}_select`, selectEl);
           const selOpts = Array.from(selectEl.options).filter(o => o.text.trim() && !o.disabled).map(o => o.text.trim());
           if (options.length === 0 && selOpts.length > 0) {
             options.push(...selOpts);
@@ -3364,7 +3734,10 @@
         }
 
         const textInput = block.querySelector('input[type="text"], textarea, .fill-blank');
-        if (textInput) window._elementRefs.set(`${id}_input`, textInput);
+        if (textInput) {
+          window._elementRefs.set(`${id}_input`, textInput);
+          window._elementRefs.set(`q_${qNum}_input`, textInput);
+        }
 
         results.push({
           id: id,
@@ -3391,9 +3764,10 @@
         if (n >= 1 && n <= 200) parsedNum = n;
       }
 
-      // 2. Tìm theo Question X of Y (VD: Question 14 of 100)
+      // 2. Tìm theo Question X of Y (VD: Question 14 of 100, 14 of 100, 14 / 100)
       if (!parsedNum) {
-        const ofMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
+        const ofMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i) ||
+                        allDocsText.match(/\b(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
         if (ofMatch) {
           const qOf = parseInt(ofMatch[1], 10);
           if (!isNaN(qOf) && qOf >= 1 && qOf <= 200) {
@@ -3404,7 +3778,7 @@
 
       // 3. Tìm theo dải số header (VD: Questions 77 - 79 -> 77 + gIdx)
       if (!parsedNum) {
-        const headerRange = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—\s]|to|through)+\s*(\d{1,3})\b/i);
+        const headerRange = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i);
         if (headerRange) {
           const qStart = parseInt(headerRange[1], 10);
           if (!isNaN(qStart) && qStart >= 1) {
@@ -3417,7 +3791,7 @@
 
       // 4. Tìm theo Question X đơn lẻ trong header hoặc văn bản trang
       if (!parsedNum) {
-        const singleHeader = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\b/i);
+        const singleHeader = allDocsText.match(/\b(?:Questions?|Câu)\s*(\d{1,3})\b/i);
         if (singleHeader) {
           const sNum = parseInt(singleHeader[1], 10);
           if (!isNaN(sNum) && sNum >= 1 && sNum <= 200) {
@@ -3426,7 +3800,12 @@
         }
       }
 
-      // 5. Nếu vẫn chưa có hoặc bị trùng với nhóm trước, quét các tiêu đề câu hỏi được đánh số trong toàn trang
+      // 5. Tìm từ active palette / pagination
+      if (!parsedNum) {
+        parsedNum = extractActiveQuestionNumber(gIdx);
+      }
+
+      // 6. Nếu vẫn chưa có hoặc bị trùng với nhóm trước, quét các tiêu đề câu hỏi được đánh số trong toàn trang
       if (!parsedNum || (results.length > 0 && results.some(r => r.question_number === parsedNum))) {
         const docMatches = Array.from(allDocsText.matchAll(/(?:^|\n|\s)\s*(\d{1,3})\s*[\.\:\)](?:\s|$|\()/g))
           .map(m => parseInt(m[1], 10))
@@ -3436,6 +3815,11 @@
           parsedNum = distinctDocNums[gIdx];
         } else if (results[gIdx - 1]?.question_number) {
           parsedNum = results[gIdx - 1].question_number + 1;
+        } else {
+          const maxSaved = getMaxSavedQuestionNum();
+          if (maxSaved > 0) {
+            parsedNum = maxSaved + 1 + gIdx;
+          }
         }
       }
 
@@ -3446,7 +3830,9 @@
         const optText = extractRadioOptionText(r, oIdx);
         options.push(optText);
         window._elementRefs.set(`${qId}_opt_${oIdx}`, r);
+        window._elementRefs.set(`q_${qNum}_opt_${oIdx}`, r);
         window._elementRefs.set(`radio_q_${gIdx + 1}_opt_${oIdx}`, r);
+        window._elementRefs.set(`q_${gIdx + 1}_opt_${oIdx}`, r);
       });
 
       results.push({
@@ -3634,7 +4020,7 @@
 
     if (results.length === 0) {
       // 1. Quét tìm bất kỳ radio nào trên trang (kể cả không nhóm được)
-      const rawRadios = queryAllInDocs('input[type="radio"]');
+      const rawRadios = getVisibleTestRadios();
       if (rawRadios.length >= 2) {
         const qId = "q_1";
         const options = [];
@@ -4167,7 +4553,7 @@
         }
 
         // Nếu sol có question_number (ví dụ câu 72), thử tìm nhóm tương ứng theo offset từ headerRange
-        const headerRangeMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—to\s]|through)+\s*(\d{1,3})\b/i);
+        const headerRangeMatch = allDocsText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i);
         if (sol.question_number && headerRangeMatch) {
           const qStart = parseInt(headerRangeMatch[1], 10);
           const offset = sol.question_number - qStart;
@@ -4493,7 +4879,7 @@
       }
 
       // 1. Kiểm tra dải số câu trong header hoặc nội dung trang (VD: Questions 80 - 82, 80-82 of 200, Question 21 - 23)
-      const rangeMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|to|through)+\s*(\d{1,3})\b/i) ||
+      const rangeMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i) ||
                          combinedSearchText.match(/\b(\d{1,3})\s*[-–—~～]\s*(\d{1,3})\s*(?:of|\/)\s*\d+\b/i);
       if (rangeMatch) {
         const q1 = parseInt(rangeMatch[1], 10);
@@ -4551,18 +4937,36 @@
   }
 
   function getQuestionItemTitle(index, sol, total, questionsData = []) {
+    // 0. ƯU TIÊN SỐ 1: Số câu đã được tính toán hoặc gắn trực tiếp trên sol
+    if (typeof sol?.question_number === "number" && sol.question_number >= 1) {
+      return `Câu ${sol.question_number}`;
+    }
+
+    // 0b. ƯU TIÊN SỐ 2: Số câu từ questionsData khớp với sol.question_id
+    const matchedQ = (questionsData && Array.isArray(questionsData))
+      ? (questionsData.find(q => q.id === sol?.question_id) || questionsData[index])
+      : null;
+    if (typeof matchedQ?.question_number === "number" && matchedQ.question_number >= 1) {
+      return `Câu ${matchedQ.question_number}`;
+    }
+
+    // 0c. Trích xuất từ question_id nếu có dạng "q_32"
+    const idMatch = String(sol?.question_id || matchedQ?.id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
+    if (idMatch) {
+      const n = parseInt(idMatch[1], 10);
+      if (n >= 1 && n <= 200 && !String(sol?.question_id).startsWith("radio_q_")) {
+        return `Câu ${n}`;
+      }
+    }
+
     const allDocsText = getCleanAllDocsText();
     const allDocs = getAllExerciseDocuments();
     const allTitles = [document.title, ...allDocs.map(d => d.title || "")].join(" ");
     const combinedSearchText = `${allTitles} ${allDocsText}`;
 
-    // 0. ƯU TIÊN SỐ 1: Số câu trích xuất trực tiếp từ DOM trang web (GROUND TRUTH THỰC TẾ)
-    if (questionsData && typeof questionsData[index]?.question_number === "number" && questionsData[index].question_number >= 1) {
-      return `Câu ${questionsData[index].question_number}`;
-    }
-
-    // 1. Dựa vào Question X of Y (VD: Question 14 of 100)
-    const ofMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
+    // 1. Dựa vào Question X of Y (VD: Question 14 of 100, 14 of 100, 14 / 100)
+    const ofMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i) ||
+                    combinedSearchText.match(/\b(\d{1,3})\s*(?:of|\/)\s*(\d{1,3})\b/i);
     if (ofMatch) {
       const qNum = parseInt(ofMatch[1], 10);
       if (!isNaN(qNum) && qNum >= 1 && qNum <= 200) {
@@ -4570,13 +4974,8 @@
       }
     }
 
-    // 2. Số câu từ kết quả giải (chỉ dùng nếu DOM không tìm thấy)
-    if (sol?.question_number && typeof sol.question_number === "number" && sol.question_number >= 1) {
-      return `Câu ${sol.question_number}`;
-    }
-
     // 2. Dựa vào dải số câu trên trang (VD: Questions 80 - 82 -> Câu 80 + index)
-    const rangeMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|to|through)+\s*(\d{1,3})\b/i);
+    const rangeMatch = combinedSearchText.match(/\b(?:Questions?)\s*(\d{1,3})\s*(?:[-–—~～]|(?:\bto\b)|(?:\bthrough\b))\s*(\d{1,3})\b/i);
     if (rangeMatch) {
       const startNum = parseInt(rangeMatch[1], 10);
       const endNum = parseInt(rangeMatch[2], 10);
@@ -4603,17 +5002,8 @@
       return `Câu ${distinctDocNums[index]}`;
     }
 
-    // 5. Trích xuất từ question_id (VD: "q_14")
-    const idMatch = String(sol?.question_id || questionsData[index]?.id || "").match(/(?:q|câu|question)_?(\d{1,3})\b/i);
-    if (idMatch) {
-      const n = parseInt(idMatch[1], 10);
-      if (n >= 1 && n <= 200 && !String(sol?.question_id).startsWith("radio_q_")) {
-        return `Câu ${n}`;
-      }
-    }
-
-    // 6. Trích xuất từ prompt/text của sol hoặc questionsData
-    const textToCheck = `${sol?.prompt || ""} ${sol?.text || ""} ${questionsData[index]?.text || ""}`;
+    // 5. Trích xuất từ prompt/text của sol hoặc questionsData
+    const textToCheck = `${sol?.prompt || ""} ${sol?.text || ""} ${matchedQ?.text || ""}`;
     const pMatch = textToCheck.match(/(?:^|\b)(\d{1,3})\s*[\.\:\)]/);
     if (pMatch) {
       const n = parseInt(pMatch[1], 10);
@@ -4784,28 +5174,35 @@
       return `
         <div class="ai-answer-item">
           <div class="ai-ans-num">
-            <span>${escapeHtml(qNumText)}</span>
-            <span style="font-size: 11px; opacity: 0.85;">Độ tin cậy: ${conf}%</span>
+            <span class="ai-ans-qtitle">${escapeHtml(qNumText)}</span>
+            <span class="ai-confidence-pill"><span class="ai-conf-dot"></span>Độ tin cậy: ${conf}%</span>
           </div>
-          <div class="ai-ans-val">👉 <strong>Đáp án chọn:</strong> <span class="ai-ans-val-text">${escapeHtml(cleanVal)}</span></div>
-          ${sol.explanation ? `<div class="ai-ans-exp">💡 <strong>Giải thích:</strong> ${escapeHtml(sol.explanation)}</div>` : ""}
+          <div class="ai-ans-val-row">
+            <span class="ai-ans-label">👉 Đáp án chọn:</span>
+            <span class="ai-ans-val-badge">${escapeHtml(cleanVal)}</span>
+          </div>
+          ${sol.explanation ? `<div class="ai-ans-exp"><span class="ai-exp-icon">💡</span> <span>${escapeHtml(sol.explanation)}</span></div>` : ""}
         </div>
       `;
     }).join("");
 
     const isListening = isCurrentInListeningSection();
     const listenFooterHtml = isListening ? `
-      <div style="font-size: 11px; color: #38bdf8; text-align: center; margin-top: 8px; padding: 6px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-        <span>⏳</span> <span>Đã chọn xong đáp án. Hệ thống sẽ <strong>tự động giải câu tiếp theo</strong> ngay khi hết audio!</span>
+      <div class="ai-listen-status-bar">
+        <span class="ai-pulse-icon">⚡</span>
+        <span>Đã chọn đáp án • Hệ thống đang <strong>tua nhanh audio</strong> để chuyển câu tức thì!</span>
       </div>
     ` : "";
 
     card.innerHTML = `
       <div class="ai-card-header">
-        <div class="ai-card-title"><span>✨</span> ${escapeHtml(pageTitle)} (${solutions.length} câu)</div>
+        <div class="ai-card-title">
+          <span class="ai-card-glow-badge">TURBO AI</span>
+          <span>${escapeHtml(pageTitle)}</span>
+          <span class="ai-card-count-badge">${solutions.length} câu</span>
+        </div>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <button class="ai-card-btn-history notranslate" id="ai-card-history-btn" title="Xem & tải toàn bộ lịch sử đáp án bài thi này (Phím tắt: Alt + L)">📜 Lịch Sử Bài</button>
-          <button class="ai-card-close" id="ai-card-close-btn">&times;</button>
+          <button class="ai-card-close" id="ai-card-close-btn" title="Đóng">&times;</button>
         </div>
       </div>
       ${transcriptBoxHtml}
@@ -5043,6 +5440,47 @@
       console.warn("[Content] Lỗi khi trích xuất ảnh câu hỏi:", err);
     }
     return images;
+  }
+
+  /**
+   * TURBO SPEED: Tua nhanh audio về cuối và kích hoạt sự kiện kết thúc âm thanh
+   * Giúp hệ thống ETS lập tức chuyển sang câu tiếp theo mà không cần chờ 30-45 giây nghe tự nhiên.
+   */
+  function triggerFastForwardAudio() {
+    try {
+      // 1. Gửi CustomEvent tới Main World Shield để xử lý các đối tượng Audio trong bộ nhớ JS
+      window.dispatchEvent(new CustomEvent("ai_fast_forward_audio"));
+
+      // 2. Tua nhanh và kích hoạt ended trên tất cả thẻ audio, video trong DOM và iframes
+      const allMedia = queryAllInDocs("audio, video");
+      for (const m of allMedia) {
+        try {
+          m.playbackRate = 16.0;
+          if (m.duration && !isNaN(m.duration) && isFinite(m.duration) && m.duration > 0.1) {
+            m.currentTime = m.duration - 0.05;
+          } else {
+            m.currentTime = 9999;
+          }
+          m.dispatchEvent(new Event("timeupdate", { bubbles: true }));
+          m.dispatchEvent(new Event("ended", { bubbles: true }));
+          if (typeof m.onended === "function") m.onended(new Event("ended"));
+        } catch (e) {}
+      }
+
+      // 3. Mở khóa nút Next nếu bị vô hiệu hóa
+      const nextBtns = queryAllInDocs("#btnNext, .btnNext, input[name*='btnNext' i], input[value*='Next' i], button[id*='next' i], button[class*='next' i]");
+      for (const btn of nextBtns) {
+        try {
+          btn.removeAttribute("disabled");
+          btn.disabled = false;
+          btn.classList.remove("disabled");
+          if (btn.style.display === "none") btn.style.display = "inline-block";
+          if (btn.style.visibility === "hidden") btn.style.visibility = "visible";
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn("[Content] Lỗi khi tua nhanh audio:", err);
+    }
   }
 
   /**
@@ -5538,12 +5976,12 @@
       session = history.find(s => s.id === activeId);
     }
 
-    // Nếu chưa có activeId nhưng session gần nhất trong history còn mới (< 4 tiếng) và CHƯA KẾT THÚC -> TÁI SỬ DỤNG!
+    // Nếu chưa có activeId nhưng session gần nhất trong history còn mới (< 4 tiếng) -> TÁI SỬ DỤNG LIÊN TỤC!
     const FOUR_HOURS = 4 * 60 * 60 * 1000;
     const now = Date.now();
     if (!session && history.length > 0) {
       const latest = history[0];
-      if (latest && !latest.isFinished && !latest.downloaded && latest.timestamp && (now - latest.timestamp < FOUR_HOURS)) {
+      if (latest && latest.timestamp && (now - latest.timestamp < FOUR_HOURS)) {
         session = latest;
         activeId = session.id;
         await chrome.storage.local.set({ toeic_active_session_id: activeId });
@@ -5551,13 +5989,12 @@
     }
 
     const isStale = session && session.timestamp && (now - session.timestamp > FOUR_HOURS);
-    const isCompleted = session && (session.isFinished || session.downloaded);
 
     const nowDate = new Date();
     const timeStr = nowDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = nowDate.toLocaleDateString('vi-VN');
 
-    if (!session || isStale || isCompleted) {
+    if (!session || isStale) {
       const dateTag = `${nowDate.getFullYear()}${String(nowDate.getMonth() + 1).padStart(2, "0")}${String(nowDate.getDate()).padStart(2, "0")}`;
       activeId = `exam_${dateTag}_${Date.now().toString().slice(-6)}`;
       const title = cleanExamName || "Bai_Thi_TOEIC";
@@ -5581,6 +6018,7 @@
     } else {
       session.lastUpdated = `${dateStr} ${timeStr}`;
       session.timestamp = Date.now();
+      session.downloaded = false; // Tiếp tục làm thì cho phép cập nhật
       if (cleanExamName && cleanExamName !== "Bai_Thi_TOEIC" && (session.title === "Bai_Thi_TOEIC" || session.title === "Bài Thi TOEIC")) {
         session.title = cleanExamName;
         session.testName = cleanExamName;
@@ -5600,192 +6038,33 @@
       }
     }
 
+    window._lastSessionAnswers = session.answers;
     return { session, history };
   }
 
   async function recordTestAnswers(solutions, questionsData = []) {
+    // Theo yêu cầu người dùng: Không cần chép lại đáp án vào lịch sử/file, chỉ lưu bộ nhớ tạm in-memory siêu nhẹ để hiển thị câu vừa làm
     if (!solutions || solutions.length === 0) return;
-    const cleanExamName = cleanTestExamTitle(getTestExamTitle());
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const currentPagePart = getCurrentPagePartName();
-
     try {
-      const { session, history } = await getOrCreateActiveSession(cleanExamName);
-
-      solutions.forEach((sol, idx) => {
-        const qData = questionsData.find(q => q.id === sol.question_id) || questionsData[idx];
-        let qNum = getQuestionItemTitle(idx, sol, solutions.length, questionsData);
-        let rawNum = parseInt(String(qNum || "").replace(/\D/g, ""), 10) || 0;
-
-        // BẢO VỆ CHỐNG TRÙNG VÀ CHỐNG GHI ĐÈ:
-        // Nếu không trích xuất được số câu hợp lệ (<= 0), tự động suy luận tiếp nối từ câu cao nhất đã có
-        if (rawNum <= 0) {
-          const maxSavedNum = session.answers.reduce((max, a) => {
-            const n = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
-            return n > max ? n : max;
-          }, 0);
-          rawNum = maxSavedNum + 1 + idx;
-          qNum = `Câu ${rawNum}`;
-        }
-
-        const partName = getQuestionPartName(rawNum, qData?.part || sol.part || currentPagePart);
-        const promptText = qData?.prompt || sol.question_text || "";
-
-        // So khớp câu hỏi theo số câu hoặc ID để ghi đè cập nhật vào đúng vị trí
-        const existingIdx = session.answers.findIndex(a => {
-          if (a.id && sol.question_id && a.id === sol.question_id && !a.id.startsWith("radio_q_")) return true;
-          const aRawNum = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
-          if (rawNum > 0 && aRawNum > 0 && rawNum === aRawNum) return true;
-          return false;
-        });
-
-        let selVal = String(sol.selected_value || "").replace(/\b(true|false)\b/gi, "").trim();
-        if (!selVal || selVal.toLowerCase() === "n/a") {
-          const lIdx = (typeof sol.selected_index === "number" && sol.selected_index >= 0) ? sol.selected_index : idx;
-          selVal = `(${String.fromCharCode(65 + (lIdx % 4))})`;
-        } else if (/^\(?([A-D])\)?$/i.test(selVal)) {
-          const m = selVal.match(/^\(?([A-D])\)?/i);
-          selVal = `(${m[1].toUpperCase()})`;
-        }
-
-        const answerRecord = {
-          id: sol.question_id || `q_${rawNum}`,
-          part: partName,
+      window._lastSessionAnswers = solutions.map((sol, idx) => {
+        const qNum = getQuestionItemTitle(idx, sol, solutions.length, questionsData);
+        return {
           questionNum: qNum,
-          prompt: promptText,
-          selectedAnswer: selVal,
-          explanation: sol.explanation || "",
-          confidence: Math.round((sol.confidence || 0.98) * 100),
-          transcript: sol.transcript || sol.conversation_transcript || null,
-          time: timeStr
+          selectedAnswer: sol.selected_value
         };
-
-        if (existingIdx >= 0) {
-          // BẢO VỆ DỮ LIỆU AI: Tuyệt đối không để bản ghi sync DOM dự phòng ("Đáp án đã được chọn thành công...")
-          // đè mất lời giải thích và transcript chi tiết của Gemini đã lưu từ trước!
-          const existing = session.answers[existingIdx];
-          const isDummySync = sol.explanation === "Đáp án đã được chọn thành công trên bài thi.";
-          const existingHasRichInfo = existing && existing.explanation && existing.explanation !== "Đáp án đã được chọn thành công trên bài thi.";
-          if (isDummySync && existingHasRichInfo) {
-            return; // Giữ nguyên bản ghi chi tiết chất lượng cao của AI
-          }
-          session.answers[existingIdx] = answerRecord;
-        } else {
-          session.answers.push(answerRecord);
-        }
       });
-
-      // Dọn dẹp và làm sạch toàn bộ câu hỏi trong session (triệt tiêu bất kỳ từ "true" nào còn sót lại từ trước)
-      session.answers.forEach(a => {
-        let val = String(a.selectedAnswer || "").replace(/\b(true|false)\b/gi, "").trim();
-        if (!val || /^(true|false|on|undefined|null|n\/a)$/i.test(val)) {
-          a.selectedAnswer = "(A)";
-        } else if (/^\(?([A-D])\)?$/i.test(val)) {
-          a.selectedAnswer = `(${val.match(/^\(?([A-D])\)?/i)[1].toUpperCase()})`;
-        } else {
-          a.selectedAnswer = val;
-        }
-      });
-
-      // Sắp xếp câu hỏi tăng dần theo số câu (1, 2, ..., 200)
-      session.answers.sort((a, b) => {
-        const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
-        const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
-        return numA - numB;
-      });
-
-      // Giới hạn lưu 30 bài thi gần nhất vào bộ nhớ storage
-      const updatedHistory = history.length > 30 ? history.slice(0, 30) : history;
-      await chrome.storage.local.set({ toeic_test_history: updatedHistory });
-      console.log(`[History] 📝 Đã gom ${session.answers.length} câu hỏi của bài thi vào DUY NHẤT 1 file [${session.title}] (Session: ${session.id}) - Đang tích lũy, khi kết thúc bài mới tải file`);
-
-      // Cập nhật giao diện Lịch Sử theo thời gian thực (Realtime Live Update) nếu modal đang mở trên màn hình
-      try {
-        currentSelectedSessionId = session.id;
-        updateHistoryModalLive(session.id);
-      } catch (e) {}
-
-      // TỰ ĐỘNG ĐẨY LÊN SERVER CLOUD (nếu có kết nối Backend)
-      chrome.runtime.sendMessage({
-        action: "sync_history_to_server",
-        payload: {
-          ...session,
-          txtContent: generateSessionTxtContent(session)
-        }
-      }).catch(() => {});
-
-      // ⛔ TUYỆT ĐỐI KHÔNG TẢI FILE TRUNG GIAN KHI ĐANG LÀM BÀI!
-      // File chỉ được tải về máy đúng 1 lần duy nhất khi bài thi kết thúc (finalizeAndDownloadActiveExamSession).
-    } catch (err) {
-      console.warn("[History] Lỗi khi lưu lịch sử đáp án:", err);
-    }
+    } catch (e) {}
   }
 
   // =========================================================================
-  // XUẤT VÀ TẢI VỀ 1 FILE DUY NHẤT CHỈ KHI KẾT THÚC BÀI THI
+  // HOÀN TẤT BÀI THI (THEO YÊU CẦU: KHÔNG CHÉP ĐÁP ÁN RA FILE, CHỈ HOÀN THÀNH BÀI THI)
   // =========================================================================
   async function finalizeAndDownloadActiveExamSession(triggerReason = "exam_finished") {
     try {
-      const data = await chrome.storage.local.get(["toeic_test_history", "toeic_active_session_id"]);
-      const activeId = data.toeic_active_session_id;
-      let history = Array.isArray(data.toeic_test_history) ? data.toeic_test_history : [];
-      let session = activeId ? history.find(s => s.id === activeId) : (history[0] || null);
-
-      if (!session || !session.answers || session.answers.length === 0) {
-        console.log(`[History] ℹ️ Không có câu hỏi nào trong phiên để xuất file (${triggerReason}).`);
-        return;
-      }
-
-      // Đảm bảo chỉ tải về đúng 1 lần duy nhất khi kết thúc bài thi
-      if (session.downloaded) {
-        console.log(`[History] ℹ️ Phiên bài thi [${session.title}] (${session.id}) đã được xuất file trước đó rồi.`);
-        return;
-      }
-
-      console.log(`[History] 🏁 KẾT THÚC BÀI THI (${triggerReason})! Đang lưu & tải về file DUY NHẤT chứa toàn bộ ${session.answers.length} câu...`);
-      session.downloaded = true;
-      session.isFinished = true;
-      const now = new Date();
-      session.completedAt = `${now.toLocaleDateString('vi-VN')} ${now.toLocaleTimeString('vi-VN')}`;
-
-      // Cập nhật lại history trong storage và reset active session để bài sau bắt đầu phiên mới
-      await chrome.storage.local.set({
-        toeic_test_history: history,
-        toeic_active_session_id: null
-      });
-
-      const safeName = cleanTestExamTitle(session.testName || session.title || "Bai_Thi_TOEIC")
-        .replace(/[^a-zA-Z0-9_\u00C0-\u024F\u1EA0-\u1EF9]/g, "_")
-        .replace(/_+/g, "_")
-        .substring(0, 35);
-      const filename = `TOEIC_History/${safeName}_${session.id}.txt`;
-      const txtContent = generateSessionTxtContent(session);
-
-      // Gửi lệnh tải file về thư mục Downloads/TOEIC_History
-      chrome.runtime.sendMessage({
-        action: "save_history_local_file",
-        filename: filename,
-        content: txtContent
-      }, (res) => {
-        if (chrome.runtime.lastError || !res?.success) {
-          console.warn("[History] Fallback tải file trực tiếp qua thẻ a:", chrome.runtime.lastError?.message || res?.error);
-          exportSessionToTxt(session);
-        }
-      });
-
-      // Đồng bộ bản hoàn thiện lên Server
-      chrome.runtime.sendMessage({
-        action: "sync_history_to_server",
-        payload: {
-          ...session,
-          txtContent: txtContent
-        }
-      }).catch(() => {});
-
-      showAiToast(`💾 Hoàn thành bài thi! Đã lưu toàn bộ ${session.answers.length} câu vào 1 file duy nhất & tải về máy.`);
+      console.log(`[Exam] 🏁 Hoàn tất bài thi (${triggerReason})! Đã hoàn thiện toàn bộ các câu hỏi trên màn hình.`);
+      // Đã tắt hoàn toàn việc tự động tải file TXT về máy theo yêu cầu của người dùng
     } catch (err) {
-      console.warn("[History] Lỗi khi hoàn tất và tải file bài thi:", err);
+      console.warn("[Exam] Lỗi khi hoàn tất bài thi:", err);
     }
   }
 

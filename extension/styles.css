@@ -1,4 +1,9 @@
-/* Floating Widget Toolbar - Luôn nổi lên trên cùng với z-index tối đa, kích thước cố định dạng viên nang (pill capsule) */
+/* =========================================================================
+   AI ENGLISH AUTO SOLVER - ULTRA-PREMIUM EXECUTIVE DESIGN SYSTEM (2026)
+   Obsidian Glassmorphism • Cyber Cyan & Emerald Accents • Smooth Micro-Animations
+   ========================================================================= */
+
+/* 1. FLOATING WIDGET TOOLBAR (Thanh công cụ nổi dạng viên nang siêu cao cấp) */
 #ai-solver-toolbar {
   position: fixed !important;
   top: 75px;
@@ -9,26 +14,30 @@
   flex-wrap: nowrap !important;
   align-items: center !important;
   justify-content: flex-start !important;
-  gap: 6px !important;
+  gap: 5px !important;
   width: auto !important;
   min-width: 0 !important;
   max-width: fit-content !important;
-  height: 44px !important;
-  min-height: 44px !important;
-  max-height: 44px !important;
-  padding: 4px 10px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  padding: 3px 8px !important;
   margin: 0 !important;
   box-sizing: border-box !important;
-  background: rgba(15, 23, 42, 0.95) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border-radius: 50px !important;
-  border: 1px solid rgba(56, 189, 248, 0.4) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  background: rgba(11, 15, 25, 0.92) !important;
+  backdrop-filter: blur(24px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+  border-radius: 40px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    0 12px 35px -5px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 4px 20px rgba(56, 189, 248, 0.2) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif !important;
   line-height: normal !important;
   user-select: none !important;
   overflow: visible !important;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 #ai-solver-toolbar *,
@@ -52,21 +61,22 @@
   font-size: inherit !important;
 }
 
+/* Drag Handle */
 .ai-toolbar-drag-handle {
   cursor: grab !important;
   color: #64748b !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0 4px !important;
+  padding: 0 3px !important;
   margin: 0 !important;
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
   width: auto !important;
   user-select: none !important;
-  transition: color 0.2s !important;
+  transition: color 0.2s, transform 0.2s !important;
   background: transparent !important;
   border: none !important;
   line-height: 1 !important;
@@ -75,137 +85,256 @@
 
 .ai-toolbar-drag-handle:hover {
   color: #38bdf8 !important;
+  transform: scale(1.15) !important;
 }
 
 .ai-toolbar-drag-handle:active {
   cursor: grabbing !important;
 }
 
+/* Brand Live Badge (TURBO) */
+.ai-toolbar-brand {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  background: rgba(14, 165, 233, 0.12) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  border-radius: 20px !important;
+  padding: 2px 7px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  flex-shrink: 0 !important;
+  cursor: default !important;
+}
+
+.ai-brand-dot {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 50% !important;
+  background: #22c55e !important;
+  box-shadow: 0 0 6px #22c55e !important;
+  animation: aiLiveDotPulse 1.8s infinite ease-in-out !important;
+}
+
+@keyframes aiLiveDotPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 6px #22c55e;
+  }
+  50% {
+    transform: scale(0.75);
+    opacity: 0.4;
+    box-shadow: 0 0 2px #22c55e;
+  }
+}
+
+.ai-brand-text {
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.6px !important;
+  color: #38bdf8 !important;
+  text-transform: uppercase !important;
+}
+
+/* Toolbar Action Buttons */
 .ai-toolbar-btn {
   border: none !important;
-  border-radius: 30px !important;
-  padding: 6px 12px !important;
-  font-size: 12.5px !important;
+  border-radius: 24px !important;
+  padding: 4px 11px !important;
+  font-size: 11.5px !important;
   font-weight: 700 !important;
   cursor: pointer !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 5px !important;
-  height: 32px !important;
-  min-height: 32px !important;
-  max-height: 32px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  max-height: 28px !important;
   width: auto !important;
   min-width: 0 !important;
   margin: 0 !important;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
   line-height: 1 !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  transition: all 0.2s ease !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-#ai-btn-solve {
+.ai-toolbar-btn:active {
+  transform: scale(0.96) !important;
+}
+
+/* Primary Button: Bắt Đầu / Dừng (#ai-btn-masterauto) */
+#ai-btn-masterauto,
+.ai-toolbar-btn.main-btn {
   background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%) !important;
-  color: #0f172a !important;
-}
-#ai-btn-solve:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.5) !important;
+  color: #0b1329 !important;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.35) inset !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.2px !important;
 }
 
-#ai-btn-autonext {
-  background: #1e293b !important;
-  color: #38bdf8 !important;
-  border: 1px solid #38bdf8 !important;
+#ai-btn-masterauto:hover,
+.ai-toolbar-btn.main-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.5) inset !important;
 }
-#ai-btn-autonext:hover {
-  background: #0284c7 !important;
+
+#ai-btn-masterauto.active,
+.ai-toolbar-btn.main-btn.active {
+  background: linear-gradient(135deg, #e11d48 0%, #f43f5e 100%) !important;
   color: #ffffff !important;
-}
-#ai-btn-autonext.active {
-  background: #22c55e !important;
-  color: #0f172a !important;
-  border-color: #22c55e !important;
-  animation: pulseGreen 1.5s infinite !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 0 18px rgba(244, 63, 94, 0.75) !important;
+  animation: pulseRoseGlow 1.4s infinite !important;
 }
 
-#ai-btn-masterauto {
-  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%) !important;
+@keyframes pulseRoseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(244, 63, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0);
+  }
+}
+
+/* Secondary Button: Giải Câu (#ai-btn-solve) */
+#ai-btn-solve,
+.ai-toolbar-btn.sub-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2) !important;
+  font-weight: 600 !important;
+}
+
+#ai-btn-solve:hover,
+.ai-toolbar-btn.sub-btn:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
   color: #ffffff !important;
-  border: 1px solid #c084fc !important;
-}
-#ai-btn-masterauto:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 4px 15px rgba(219, 39, 119, 0.5) !important;
-}
-#ai-btn-masterauto.active {
-  background: linear-gradient(135deg, #22c55e 0%, #10b981 100%) !important;
-  color: #0f172a !important;
-  border-color: #22c55e !important;
-  animation: pulseGreen 1.2s infinite !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-1px) !important;
 }
 
-#ai-btn-review {
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%) !important;
-  color: #0f172a !important;
-}
-#ai-btn-review:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5) !important;
-}
-
+/* Legacy button fallbacks if referenced */
+#ai-btn-autonext,
+#ai-btn-review,
 #ai-btn-next {
-  background: #334155 !important;
+  background: rgba(51, 65, 85, 0.8) !important;
   color: #f8fafc !important;
-}
-#ai-btn-next:hover {
-  background: #475569 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-@keyframes pulseGreen {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+/* Toolbar Divider & Mini Control Buttons */
+.ai-toolbar-divider {
+  width: 1px !important;
+  min-width: 1px !important;
+  max-width: 1px !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  max-height: 18px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  margin: 0 2px !important;
+  padding: 0 !important;
+  border: none !important;
+  flex-shrink: 0 !important;
 }
 
-/* Floating Results Card & Review Modal */
-#ai-solver-card, #ai-review-modal, #ai-history-modal {
+.ai-toolbar-icon-btn {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  width: 24px !important;
+  min-width: 24px !important;
+  max-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  max-height: 24px !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+}
+
+.ai-toolbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.ai-toolbar-icon-btn.close:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+/* 2. FLOATING RESULTS CARD (Bảng hiển thị kết quả bài giải phong cách Dashboard) */
+#ai-solver-card,
+#ai-review-modal,
+#ai-history-modal {
   position: fixed;
   top: 110px;
   right: 20px;
   z-index: 2147483647 !important;
-  width: 440px;
-  min-width: 320px;
+  width: 460px;
+  min-width: 330px;
   max-width: calc(100vw - 30px);
   min-height: 200px;
   max-height: calc(100vh - 40px);
-  background: #0f172a;
+  background: rgba(11, 15, 25, 0.94) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
   color: #f8fafc;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.7);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow:
+    0 25px 60px -15px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 10px 35px rgba(56, 189, 248, 0.2) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   resize: both;
-  animation: aiSolverFadeIn 0.2s ease-out;
+  animation: aiSolverFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes aiSolverFadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .ai-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #1e293b;
-  padding-bottom: 10px;
-  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
   cursor: grab;
   user-select: none;
 }
@@ -215,27 +344,86 @@
 }
 
 .ai-card-title {
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-card-glow-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+  color: #0b1329;
+  padding: 2px 7px;
+  border-radius: 20px;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.ai-card-count-badge {
+  font-size: 11px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.ai-card-close {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font-size: 16px;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.ai-card-close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Transcript Box */
+.ai-transcript-box {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.ai-transcript-title {
+  font-size: 11.5px;
   font-weight: 700;
   color: #38bdf8;
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-bottom: 6px;
 }
 
-.ai-card-close {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 0 4px;
+.ai-transcript-text {
+  font-size: 12px;
+  color: #e2e8f0;
+  line-height: 1.55;
+  background: rgba(11, 15, 25, 0.65);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: pre-line;
 }
 
-.ai-card-close:hover {
-  color: #ffffff;
-}
-
+/* Answers List */
 .ai-answers-list {
   overflow-y: auto;
   flex: 1 1 auto;
@@ -243,10 +431,139 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: none;
   padding-right: 4px;
 }
 
+.ai-answers-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ai-answers-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+/* Answer Item Card */
+.ai-answer-item {
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.75) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-left: 4px solid #38bdf8;
+  border-radius: 12px;
+  padding: 13px 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.ai-answer-item:hover {
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+
+.ai-ans-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ai-confidence-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  border-radius: 12px;
+  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-conf-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+.ai-ans-val-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ai-ans-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.ai-ans-val-badge {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.5);
+  border-radius: 6px;
+  padding: 3px 9px;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+
+.ai-ans-exp {
+  font-size: 11.5px;
+  color: #94a3b8;
+  line-height: 1.5;
+  background: rgba(11, 15, 25, 0.4);
+  padding: 7px 10px;
+  border-radius: 6px;
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.ai-exp-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+/* Listening Status Bar in Card */
+.ai-listen-status-bar {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  text-align: center;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.ai-pulse-icon {
+  animation: aiFastPulse 1s infinite alternate;
+}
+
+@keyframes aiFastPulse {
+  from {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+
+  to {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* Resize Handle */
 .ai-card-resize-handle {
   position: absolute;
   bottom: 0;
@@ -278,185 +595,23 @@
   border-color: #7dd3fc;
 }
 
-.ai-answers-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ai-answers-list::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
-}
-
-.ai-answer-item {
-  background: #1e293b;
-  border-radius: 8px;
-  padding: 12px 14px;
-  border-left: 3px solid #38bdf8;
-}
-
-.ai-ans-num {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #38bdf8;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-  display: flex;
-  justify-content: space-between;
-}
-
-/* Transcript & Subtitle Box */
-.ai-transcript-box {
-  background: rgba(14, 165, 233, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 6px 0 8px 0;
-}
-
-.ai-transcript-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #38bdf8;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-}
-
-.ai-transcript-text {
-  font-size: 12px;
-  color: #e2e8f0;
-  line-height: 1.5;
-  background: rgba(15, 23, 42, 0.6);
-  padding: 6px 8px;
-  border-radius: 4px;
-  white-space: pre-line;
-}
-
-/* Visual Cross-Referencing Box */
-.ai-matching-box {
-  background: rgba(168, 85, 247, 0.12);
-  border: 1px solid rgba(192, 132, 252, 0.35);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 6px 0 8px 0;
-}
-
-.ai-matching-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #c084fc;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 4px;
-}
-
-.ai-matching-text {
-  font-size: 11.5px;
-  color: #f1f5f9;
-  line-height: 1.5;
-  white-space: pre-line;
-}
-
-.ai-ans-val {
-  font-size: 14px;
-  font-weight: 700;
-  color: #22c55e;
-  margin-bottom: 4px;
-}
-
-.ai-ans-val-text {
-  color: #4ade80;
-}
-
-.ai-ans-exp {
-  font-size: 11.5px;
-  color: #94a3b8;
-  line-height: 1.45;
-}
-
-/* Phân cách và nút điều khiển Toolbar */
-.ai-toolbar-divider {
-  width: 1px !important;
-  min-width: 1px !important;
-  max-width: 1px !important;
-  height: 20px !important;
-  min-height: 20px !important;
-  max-height: 20px !important;
-  background: #334155 !important;
-  margin: 0 3px !important;
-  padding: 0 !important;
-  border: none !important;
-  flex-shrink: 0 !important;
-  box-sizing: border-box !important;
-}
-
-.ai-toolbar-icon-btn {
-  background: transparent !important;
-  border: none !important;
-  color: #94a3b8 !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  cursor: pointer !important;
-  width: 26px !important;
-  min-width: 26px !important;
-  max-width: 26px !important;
-  height: 26px !important;
-  min-height: 26px !important;
-  max-height: 26px !important;
-  border-radius: 50% !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
-  transition: all 0.2s ease !important;
-  line-height: 1 !important;
-  flex-shrink: 0 !important;
-}
-
-.ai-toolbar-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.15) !important;
-  color: #f8fafc !important;
-}
-
-.ai-toolbar-icon-btn.close:hover {
-  background: rgba(239, 68, 68, 0.3) !important;
-  color: #f87171 !important;
-}
-
-#ai-solver-bubble,
-#ai-solver-bubble *,
-#ai-solver-bubble *::before,
-#ai-solver-bubble *::after {
-  box-sizing: border-box !important;
-}
-
-#ai-solver-bubble::before,
-#ai-solver-bubble::after,
-#ai-solver-bubble *::before,
-#ai-solver-bubble *::after {
-  content: none !important;
-}
-
+/* 3. FLOATING MINI BUBBLE WIDGET (Bong bóng thu nhỏ hình cầu phát sáng) */
 #ai-solver-bubble {
   position: fixed !important;
   top: 75px;
   right: 20px;
   z-index: 2147483647 !important;
-  width: 46px !important;
-  min-width: 46px !important;
-  max-width: 46px !important;
-  height: 46px !important;
-  min-height: 46px !important;
-  max-height: 46px !important;
+  width: 48px !important;
+  min-width: 48px !important;
+  max-width: 48px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  max-height: 48px !important;
   padding: 0 !important;
   margin: 0 !important;
   box-sizing: border-box !important;
   border-radius: 50% !important;
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%) !important;
+  background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #0284c7 60%, #0369a1 100%) !important;
   color: #ffffff !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -466,9 +621,11 @@
   cursor: pointer !important;
   pointer-events: auto !important;
   touch-action: none !important;
-  box-shadow: 0 8px 25px rgba(56, 189, 248, 0.5) !important;
-  border: 2.5px solid rgba(255, 255, 255, 0.95) !important;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease !important;
+  box-shadow:
+    0 10px 30px rgba(56, 189, 248, 0.55),
+    0 0 0 2px rgba(255, 255, 255, 0.35) inset !important;
+  border: 2px solid rgba(255, 255, 255, 0.95) !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease !important;
   user-select: none !important;
 }
 
@@ -477,77 +634,98 @@
 }
 
 #ai-solver-bubble:hover {
-  transform: scale(1.12);
-  box-shadow: 0 10px 30px rgba(56, 189, 248, 0.75) !important;
+  transform: scale(1.14) !important;
+  box-shadow:
+    0 12px 35px rgba(56, 189, 248, 0.8),
+    0 0 0 2px rgba(255, 255, 255, 0.6) inset !important;
 }
 
 #ai-solver-bubble:active {
-  transform: scale(0.95);
+  transform: scale(0.94) !important;
 }
 
 #ai-solver-bubble.auto-running {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  background: radial-gradient(circle at 35% 35%, #34d399 0%, #059669 60%, #047857 100%) !important;
   border-color: #6ee7b7 !important;
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.8) !important;
-  animation: pulseGreen 1.5s infinite !important;
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.85) !important;
+  animation: pulseGreenGlow 1.5s infinite !important;
 }
 
 #ai-solver-bubble.solving {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+  background: radial-gradient(circle at 35% 35%, #fbbf24 0%, #d97706 60%, #b45309 100%) !important;
   border-color: #fde68a !important;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.8) !important;
-  animation: pulseAmber 1.2s infinite !important;
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.85) !important;
+  animation: pulseAmberGlow 1.2s infinite !important;
 }
 
-#ai-solver-bubble.autonext-running {
-  border-color: #38bdf8 !important;
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.8) !important;
+@keyframes pulseAmberGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
 }
 
-@keyframes pulseAmber {
-  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-}
-
-/* Toast thông báo phím tắt */
+/* 4. TOAST THÔNG BÁO TINH TẾ */
 #ai-solver-toast {
   position: fixed;
   bottom: 30px;
   right: 30px;
   z-index: 2147483647 !important;
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(11, 15, 25, 0.94);
+  backdrop-filter: blur(20px);
   color: #f8fafc;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid #38bdf8;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  padding: 11px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 20px rgba(56, 189, 248, 0.25);
   font-size: 13px;
-  font-weight: 500;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
   display: flex;
   align-items: center;
   gap: 10px;
   pointer-events: none;
-  animation: aiToastFadeInOut 2.6s ease forwards;
+  animation: aiToastFadeInOut 2.8s ease forwards;
 }
 
 #ai-solver-toast kbd {
-  background: #1e293b;
-  border: 1px solid #475569;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 11.5px;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
   font-family: monospace;
   color: #38bdf8;
   font-weight: bold;
 }
 
 @keyframes aiToastFadeInOut {
-  0% { opacity: 0; transform: translateY(15px); }
-  12% { opacity: 1; transform: translateY(0); }
-  85% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(15px); }
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  85% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
 }
 
 .ai-hidden {
@@ -557,94 +735,59 @@
   pointer-events: none !important;
 }
 
-/* Nút Lịch Sử trong Header của bảng kết quả */
-.ai-card-btn-history {
-  background: rgba(56, 189, 248, 0.15) !important;
-  color: #38bdf8 !important;
-  border: 1px solid rgba(56, 189, 248, 0.4) !important;
-  border-radius: 6px !important;
-  padding: 3px 8px !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  cursor: pointer !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  transition: all 0.2s !important;
-}
-
-.ai-card-btn-history:hover {
-  background: #0284c7 !important;
-  color: #ffffff !important;
-}
-
-/* Modal Lịch Sử Đáp Án Bài Thi */
-#ai-history-modal {
-  position: fixed !important;
-  top: 90px !important;
-  right: 25px !important;
-  z-index: 2147483647 !important;
-  width: 520px !important;
+/* 5. MODAL LỊCH SỬ VÀ DÒ BÀI (Obsidian Executive Glass) */
+#ai-history-modal,
+#ai-review-modal {
+  width: 530px !important;
   max-width: calc(100vw - 40px) !important;
-  max-height: 640px !important;
-  background: #0f172a !important;
-  color: #f8fafc !important;
-  border: 1px solid rgba(56, 189, 248, 0.4) !important;
-  border-radius: 12px !important;
-  padding: 16px !important;
-  box-shadow: 0 25px 45px -10px rgba(0, 0, 0, 0.8), 0 0 25px rgba(56, 189, 248, 0.25) !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  animation: aiSolverFadeIn 0.2s ease-out !important;
+  max-height: 650px !important;
 }
 
 .ai-history-toolbar {
   display: flex !important;
   align-items: center !important;
   flex-wrap: wrap !important;
-  gap: 6px !important;
-  padding: 8px 0 !important;
-  border-bottom: 1px solid #1e293b !important;
-  margin-bottom: 10px !important;
+  gap: 7px !important;
+  padding: 10px 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  margin-bottom: 12px !important;
 }
 
 .ai-history-btn {
-  background: #1e293b !important;
-  border: 1px solid #334155 !important;
+  background: rgba(30, 41, 59, 0.7) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #e2e8f0 !important;
-  border-radius: 6px !important;
-  padding: 5px 10px !important;
-  font-size: 11.5px !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   transition: all 0.2s !important;
 }
 
 .ai-history-btn:hover {
   border-color: #38bdf8 !important;
   color: #38bdf8 !important;
-  background: rgba(56, 189, 248, 0.1) !important;
+  background: rgba(14, 165, 233, 0.15) !important;
 }
 
 .ai-history-btn.danger:hover {
   border-color: #ef4444 !important;
   color: #ef4444 !important;
-  background: rgba(239, 68, 68, 0.1) !important;
+  background: rgba(239, 68, 68, 0.15) !important;
 }
 
 .ai-history-select {
-  background: #1e293b !important;
-  border: 1px solid #334155 !important;
+  background: rgba(30, 41, 59, 0.8) !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
   color: #38bdf8 !important;
   font-weight: 600 !important;
-  border-radius: 6px !important;
-  padding: 4px 8px !important;
-  font-size: 11.5px !important;
+  border-radius: 8px !important;
+  padding: 5px 10px !important;
+  font-size: 12px !important;
   outline: none !important;
   max-width: 260px !important;
 }
@@ -654,43 +797,26 @@
   flex: 1 !important;
   display: flex !important;
   flex-direction: column !important;
-  gap: 8px !important;
+  gap: 9px !important;
   max-height: 480px !important;
   padding: 8px 6px 30px 6px !important;
   box-sizing: border-box !important;
 }
 
-.ai-history-pill {
-  transition: all 0.15s ease !important;
-}
-
-.ai-history-pill:hover {
-  background: #334155 !important;
-  border-color: #38bdf8 !important;
-  transform: translateY(-1px) !important;
-}
-
-.ai-history-list::-webkit-scrollbar {
-  width: 6px !important;
-}
-
-.ai-history-list::-webkit-scrollbar-thumb {
-  background: #334155 !important;
-  border-radius: 4px !important;
-}
-
 .ai-history-item {
-  background: #1e293b !important;
-  border: 1px solid #334155 !important;
-  border-radius: 8px !important;
-  padding: 10px 12px !important;
-  transition: border-color 0.2s !important;
+  background: rgba(30, 41, 59, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 10px !important;
+  padding: 11px 14px !important;
+  transition: all 0.2s !important;
 }
 
 .ai-history-item:hover {
-  border-color: #475569 !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+  transform: translateY(-1px) !important;
 }
 
+/* Additional History & Review Modal Classes */
 .ai-history-header {
   display: flex !important;
   justify-content: space-between !important;
@@ -700,17 +826,17 @@
 
 .ai-history-qnum {
   font-weight: 700 !important;
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   color: #38bdf8 !important;
 }
 
 .ai-history-badge {
-  background: rgba(34, 197, 94, 0.2) !important;
+  background: rgba(34, 197, 94, 0.18) !important;
   color: #4ade80 !important;
-  border: 1px solid #22c55e !important;
+  border: 1px solid rgba(34, 197, 94, 0.4) !important;
   font-size: 11.5px !important;
   font-weight: 800 !important;
-  padding: 2px 7px !important;
+  padding: 2px 8px !important;
   border-radius: 12px !important;
 }
 
@@ -730,7 +856,17 @@
 .ai-history-exp {
   font-size: 11px !important;
   color: #94a3b8 !important;
-  line-height: 1.35 !important;
+  line-height: 1.4 !important;
+}
+
+.ai-history-pill {
+  transition: all 0.15s ease !important;
+}
+
+.ai-history-pill:hover {
+  background: #334155 !important;
+  border-color: #38bdf8 !important;
+  transform: translateY(-1px) !important;
 }
 
 @keyframes aiHistoryPulseNew {
@@ -740,9 +876,10 @@
     box-shadow: 0 0 15px rgba(56, 189, 248, 0.5) !important;
     transform: scale(1.015);
   }
+
   100% {
-    background: #0f172a !important;
-    border-color: #1e293b !important;
+    background: rgba(30, 41, 59, 0.65) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: none !important;
     transform: scale(1);
   }
@@ -752,27 +889,32 @@
   animation: aiHistoryPulseNew 2s ease-out !important;
 }
 
-@keyframes aiLivePulse {
-  0%, 100% {
-    opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 6px #22c55e;
-  }
-  50% {
-    opacity: 0.35;
-    transform: scale(0.8);
-    box-shadow: 0 0 2px #22c55e;
-  }
-}
-
 .ai-live-dot {
   display: inline-block !important;
   width: 6.5px !important;
   height: 6.5px !important;
   border-radius: 50% !important;
   background: #22c55e !important;
-  animation: aiLivePulse 1.8s infinite ease-in-out !important;
+  box-shadow: 0 0 6px #22c55e !important;
+  animation: aiLiveDotPulse 1.8s infinite ease-in-out !important;
 }
 
+.ai-card-btn-history {
+  background: rgba(56, 189, 248, 0.12) !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  transition: all 0.2s !important;
+}
 
-
+.ai-card-btn-history:hover {
+  background: #0284c7 !important;
+  color: #ffffff !important;
+}

@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { solveQuestionsBatch } from "./services/geminiService.js";
+import { solveQuestionsBatch, getAllConfiguredKeys } from "./services/geminiService.js";
 
 dotenv.config();
 
@@ -50,7 +50,7 @@ function generateServerTxtContent(session) {
     return numA - numB;
   });
 
-  let content = `================================================================================\r\n`;
+  let content = `\uFEFF================================================================================\r\n`;
   content += `                    BẢNG ĐÁP ÁN BÀI THI TOEIC HOÀN CHỈNH\r\n`;
   content += `================================================================================\r\n`;
   content += `Tên bài thi: ${session.title || session.testName || "Bài Thi TOEIC"}\r\n`;
@@ -183,11 +183,60 @@ app.post("/api/history", async (req, res) => {
     const jsonPath = path.join(HISTORY_DIR, `${safeId}.json`);
     const txtPath = path.join(HISTORY_DIR, `${safeId}.txt`);
 
+    // Hợp nhất dữ liệu thông minh: Nếu session đã tồn tại trên server, merge các câu hỏi theo số câu để không bao giờ bị thiếu
+    let finalSession = { ...session };
+    if (fs.existsSync(jsonPath)) {
+      try {
+        const existingSession = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+        if (existingSession && Array.isArray(existingSession.answers) && existingSession.answers.length > 0) {
+          const answerMap = new Map();
+          existingSession.answers.forEach(a => {
+            const rawNum = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10);
+            const key = rawNum > 0 ? `q_${rawNum}` : (a.id || JSON.stringify(a));
+            answerMap.set(key, a);
+          });
+
+          (session.answers || []).forEach(a => {
+            const rawNum = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10);
+            const key = rawNum > 0 ? `q_${rawNum}` : (a.id || JSON.stringify(a));
+            const existingAns = answerMap.get(key);
+            if (existingAns && existingAns.explanation && existingAns.explanation !== "Đáp án đã được chọn thành công trên bài thi." && a.explanation === "Đáp án đã được chọn thành công trên bài thi.") {
+              a.explanation = existingAns.explanation;
+              a.confidence = existingAns.confidence || a.confidence;
+              if (existingAns.transcript && !a.transcript) a.transcript = existingAns.transcript;
+            }
+            answerMap.set(key, a);
+          });
+
+          const mergedAnswers = Array.from(answerMap.values());
+          mergedAnswers.sort((a, b) => {
+            const numA = parseInt(String(a.questionNum || "").replace(/\D/g, ""), 10) || 0;
+            const numB = parseInt(String(b.questionNum || "").replace(/\D/g, ""), 10) || 0;
+            return numA - numB;
+          });
+          finalSession.answers = mergedAnswers;
+          finalSession.createdAt = existingSession.createdAt || finalSession.createdAt;
+        }
+      } catch (mergeErr) {
+        console.warn("[POST /api/history] Lỗi khi hợp nhất session cũ:", mergeErr.message);
+      }
+    }
+
+    // Lọc sạch toàn bộ các câu hỏi giả/hộp thoại hệ thống nếu có trước khi lưu
+    if (Array.isArray(finalSession.answers)) {
+      finalSession.answers = finalSession.answers.filter(a => {
+        const sel = (a.selectedAnswer || "").toLowerCase();
+        const p = (a.prompt || "").toLowerCase();
+        return !/start\s+(?:a\s+)?new\s+test|resume\s+test|timed\s+test|untimed\s+test/i.test(sel) &&
+               !/start\s+(?:a\s+)?new\s+test|resume\s+test/i.test(p);
+      });
+    }
+
     // 1. Lưu file JSON đầy đủ chi tiết
-    fs.writeFileSync(jsonPath, JSON.stringify(session, null, 2), "utf-8");
+    fs.writeFileSync(jsonPath, JSON.stringify(finalSession, null, 2), "utf-8");
 
     // 2. Tạo và lưu file TXT rõ ràng, dễ đọc trên máy chủ theo Part & bảng tổng hợp
-    let txtContent = session.txtContent || generateServerTxtContent(session);
+    let txtContent = generateServerTxtContent(finalSession);
     fs.writeFileSync(txtPath, txtContent, "utf-8");
 
     // 3. Cập nhật file danh mục tổng quan (index)
@@ -201,13 +250,13 @@ app.post("/api/history", async (req, res) => {
       }
     }
 
-    const existingIdx = indexList.findIndex(item => item.id === session.id);
+    const existingIdx = indexList.findIndex(item => item.id === finalSession.id);
     const summaryItem = {
-      id: session.id,
-      title: session.title,
-      url: session.url,
-      totalQuestions: session.answers?.length || 0,
-      lastUpdated: session.lastUpdated || new Date().toISOString(),
+      id: finalSession.id,
+      title: finalSession.title,
+      url: finalSession.url,
+      totalQuestions: finalSession.answers?.length || 0,
+      lastUpdated: finalSession.lastUpdated || new Date().toISOString(),
       txtFile: `${safeId}.txt`,
       jsonFile: `${safeId}.json`
     };
@@ -222,13 +271,13 @@ app.post("/api/history", async (req, res) => {
     if (indexList.length > 100) indexList = indexList.slice(0, 100);
     fs.writeFileSync(indexPath, JSON.stringify(indexList, null, 2), "utf-8");
 
-    console.log(`[POST /api/history] 📁 Đã lưu trữ bài thi [${session.title}] (${session.answers?.length || 0} câu) lên Server Database.`);
+    console.log(`[POST /api/history] 📁 Đã lưu trữ bài thi [${finalSession.title}] (${finalSession.answers?.length || 0} câu) lên Server Database.`);
 
     return res.json({
       success: true,
       message: "Đã lưu lịch sử đáp án lên máy chủ thành công!",
-      id: session.id,
-      total: session.answers?.length || 0
+      id: finalSession.id,
+      total: finalSession.answers?.length || 0
     });
   } catch (err) {
     console.error("[POST /api/history Error]", err);
@@ -313,9 +362,11 @@ process.on("unhandledRejection", (reason) => {
 
 // Khởi chạy server
 app.listen(PORT, () => {
+  const keysCount = getAllConfiguredKeys().length;
   console.log(`====================================================`);
   console.log(`🚀 AI English Solver Backend đang chạy (Chế độ 24/24):`);
   console.log(`   👉 http://localhost:${PORT}`);
   console.log(`   👉 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`   🔑 Đã nạp thành công: ${keysCount} Gemini API Keys (Xoay tua tự động)`);
   console.log(`====================================================`);
 });
