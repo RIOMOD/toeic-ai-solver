@@ -849,13 +849,19 @@
    * Kiểm tra xem trang hiện tại có phải là bài tập hoặc bài kiểm tra không
    */
   function isExerciseOrTestPage() {
-    if (getSectionTransitionButton()) {
-      return false; // Đang ở popup Start Section chuyển Part -> Không phải câu hỏi bài tập
-    }
     const url = window.location.href.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+
+    // Nếu đang ở màn hình trang chủ LMS (#/home), chắc chắn không phải trang bài thi
+    if (hash.includes("home") || url.includes("#/home")) {
+      return false;
+    }
+
+    // Nếu đang ở cửa sổ thi ETS (Test.aspx, LearningArea, toeicolpc.com, /runtime/)
     if (url.includes("learningarea") || url.includes("test.aspx") || url.includes("/runtime/") || url.includes("toeicolpc.com")) {
       return true;
     }
+
     const allText = getCachedPageText(1500);
     if (/(?:Question|Câu)\s*\d+/i.test(allText)) return true;
     if (queryAllInDocs("input[type='radio'], input[type='checkbox']").some(isElementVisible)) return true;
@@ -1689,7 +1695,13 @@
     const allModals = Array.from(document.querySelectorAll("div, [role='dialog'], .modal, .dialog, .popup, [class*='modal' i], [class*='popup' i], [class*='alert' i]"));
     for (const m of allModals) {
       if (isAiElement(m)) continue;
-      const text = (m.innerText || "").toLowerCase();
+      const text = (m.innerText || m.textContent || "").toLowerCase();
+
+      // BẢO VỆ TUYỆT ĐỐI: Không bao giờ đóng hộp thoại Assessment Center hoặc Please select test mode
+      if (text.includes("assessment center") || text.includes("select test mode") || text.includes("available tests")) {
+        continue;
+      }
+
       if (text.includes("please close any messages or popups") || text.includes("close any messages") || text.includes("before opening this link")) {
         const okBtn = Array.from(m.querySelectorAll("button, div, span, a, input[type='button']")).find(el => {
           const t = (el.innerText || el.value || "").trim().toLowerCase();
@@ -1703,13 +1715,19 @@
       }
     }
 
-    // 2. Quét các modal/dialog thông báo chung khác
+    // 2. Quét các modal/dialog thông báo chung khác (loại trừ Assessment Center & Test Mode)
     const btns = Array.from(document.querySelectorAll(".modal button, .dialog button, .popup button, button.ok, button.confirm, button.btn-primary, [role='dialog'] button, .bootbox button"));
     for (const b of btns) {
       if (isAiElement(b)) continue;
+      const mParent = b.closest(".modal, .dialog, [role='dialog'], [class*='modal' i]");
+      const pText = (mParent?.innerText || mParent?.textContent || "").toLowerCase();
+      if (pText.includes("assessment center") || pText.includes("select test mode") || pText.includes("available tests")) {
+        continue; // Bỏ qua modal bài thi
+      }
+
       const t = (b.innerText || "").trim().toLowerCase();
       if (t === "ok" || t === "yes" || t === "submit" || t === "đồng ý" || t === "xác nhận" || t === "close" || t === "đóng") {
-        console.log("[MasterAuto] 🔘 Tự động đóng hộp thoại / modal:", b);
+        console.log("[MasterAuto] 🔘 Tự động đóng hộp thoại / modal thông báo:", b);
         triggerSmartClick(b);
         return true;
       }
